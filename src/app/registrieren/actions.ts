@@ -3,7 +3,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { clientIpFrom, parseRegistration } from "@/domain/registration";
+import { clientIpFrom, parseRegistration, passwordLinkMail } from "@/domain/registration";
+import { INVITATION_DAYS } from "@/domain/password";
 import { createMailer, isValidAddress } from "@/server/mailer";
 import { confirmRegistration, requestRegistration } from "@/server/registration";
 import { registrationBaseUrl, registrationOpen, showLinkOnPage } from "@/server/registration-config";
@@ -57,5 +58,16 @@ export async function confirmRegistrationAction(token: string): Promise<{ error:
     return { error: "Das hat leider nicht geklappt. Bitte versuche es gleich noch einmal." };
   }
   if (!r.ok) return { error: "Dieser Link ist ungültig oder abgelaufen. Bitte registriere dich noch einmal." };
+  // Zusätzlich per Mail, damit nichts verloren geht, wenn die Person den Tab schließt. Scheitert der Versand,
+  // geht es trotzdem weiter: Der Link steht gleich auf der nächsten Seite.
+  const baseUrl = registrationBaseUrl();
+  if (baseUrl) {
+    try {
+      const mail = passwordLinkMail(`${baseUrl}/einladung/${r.invitationToken}`, r.slug, INVITATION_DAYS);
+      await createMailer().send({ to: r.email, subject: mail.subject, text: mail.text });
+    } catch (e) {
+      console.error("Passwort-Link-Mail fehlgeschlagen", e instanceof Error ? e.name : "Fehler");
+    }
+  }
   redirect(`/einladung/${r.invitationToken}`);
 }

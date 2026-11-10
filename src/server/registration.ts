@@ -86,7 +86,20 @@ export async function previewRegistration(db: Db, token: string, now: Date = new
   });
 }
 
-export type ConfirmResult = { ok: true; slug: string; invitationToken: string } | { ok: false };
+/** Wurde dieser Link schon bestätigt (und ist noch nicht abgelaufen)? Nur zur freundlichen Meldung bei erneutem Öffnen. */
+export async function wasConfirmed(db: Db, token: string, now: Date = new Date()): Promise<boolean> {
+  if (!isRegistrationToken(token)) return false;
+  const hash = hashRegistrationToken(token);
+  return withRegistrationAccess(db, { tokenHash: hash }, async (tx) => {
+    const [row] = await tx
+      .select({ id: registrations.id })
+      .from(registrations)
+      .where(and(eq(registrations.tokenHash, hash), sql`${registrations.usedAt} is not null`, gt(registrations.expiresAt, now)));
+    return !!row;
+  });
+}
+
+export type ConfirmResult = { ok: true; slug: string; invitationToken: string; email: string } | { ok: false };
 
 const isUniqueViolation = (e: unknown): boolean => {
   const err = e as { code?: string; cause?: { code?: string } } | undefined;
@@ -143,6 +156,6 @@ export async function confirmRegistration(db: Db, token: string, now: Date = new
       entityId: organizationId,
       meta: { termsVersion: row.termsVersion },
     });
-    return { ok: true, slug, invitationToken } as const;
+    return { ok: true, slug, invitationToken, email: row.email } as const;
   });
 }
