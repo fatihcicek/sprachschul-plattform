@@ -1,3 +1,4 @@
+import { NavItems } from "@/app/nav-items";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { logout } from "@/app/actions";
@@ -8,11 +9,9 @@ export function Shell({ name, home, nav = [], wide = false, children }: { name: 
   return (
     <main className={wide ? "shell wide" : "shell"}>
       <div className="top">
-        <div className="row" style={{ gap: 24 }}>
+        <div className="row" style={{ gap: 20 }}>
           <Link href={home} className="brand">Kurswerk</Link>
-          {nav.map((n) => (
-            <Link key={n.href} href={n.href} className="navlink">{n.label}</Link>
-          ))}
+          <NavItems nav={nav} />
         </div>
         <form action={logout} className="row" style={{ gap: 12 }}>
           <span className="muted">{name}</span>
