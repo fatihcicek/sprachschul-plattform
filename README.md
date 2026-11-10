@@ -56,3 +56,11 @@ npm run dev        # http://localhost:3000
 - Jede Abgabe ist eine eigene, unveränderliche Version; Rückmeldungen ebenso (Datenbankregel).
 
 Ohne `DEMO_LOGIN=1` ist keine Anmeldung möglich. Die Demo-Anmeldung gehört nicht in einen Betrieb mit echten Daten.
+
+## Testinstallation auf Namecheap
+
+`https://schule.gold-code-academy.com` – nur erfundene Beispieldaten.
+
+- GitHub Actions (`.github/workflows/deploy.yml`) prüft jeden Stand auf `main` (Typprüfung, Tests), baut das Paket (`scripts/bundle.sh`) und legt es auf den Zweig `deploy`.
+- Auf dem Server holt ein Cronjob (`deploy/namecheap-update.sh`) alle 5 Minuten diesen Zweig und startet die App neu.
+- Das Paket hat keinen Datenbankserver, weil das Hosting-Paket keinen bietet: `DATABASE_URL="pglite:/pfad"` nutzt die eingebettete Datenbank (PGlite) mit denselben Migrationen und derselben Zeilensicherheit. Für den echten Betrieb gehört ein richtiger PostgreSQL-Server dahin.

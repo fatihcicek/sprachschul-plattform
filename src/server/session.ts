@@ -5,9 +5,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { sql } from "drizzle-orm";
 import { memberships, organizations, users } from "@/db/schema";
-import { withOrganization } from "@/db/client";
+import { withOrganization, withSlugLookup } from "@/db/client";
 import { getDb } from "@/db";
 
 const COOKIE = "kw_session";
@@ -68,11 +67,8 @@ export const demoLoginEnabled = () => process.env.DEMO_LOGIN === "1";
 export async function demoPeople() {
   if (!demoLoginEnabled()) return { organizationId: null, people: [] };
   const slug = process.env.DEMO_ORG_SLUG ?? "beispielschule";
-  const db = getDb();
-  const [org] = await db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('app.lookup_slug', ${slug}, true)`);
-    return tx.select({ id: organizations.id }).from(organizations).where(eq(organizations.slug, slug));
-  });
+  const db = await getDb();
+  const [org] = await withSlugLookup(db, slug, (tx) => tx.select({ id: organizations.id }).from(organizations).where(eq(organizations.slug, slug)));
   if (!org) return { organizationId: null, people: [] };
   const people = await withOrganization(db, org.id, (tx) =>
     tx

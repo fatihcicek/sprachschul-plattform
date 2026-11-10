@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.16",
     "drizzle-orm": "^0.45.4",
     "next": "^15.5.29",
     "pg": "^8.23.1",

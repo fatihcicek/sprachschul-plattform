@@ -64,7 +64,7 @@ beforeAll(async () => {
   await admin.query(`CREATE DATABASE ${testDbName}`);
   await admin.end();
   ({ db, pool } = createDb(testUrl.toString()));
-  await migrate(db, { migrationsFolder: "drizzle" });
+  await migrate(db as never, { migrationsFolder: "drizzle" });
   a = await createSchool("Alpha");
   b = await createSchool("Beta");
 }, 60_000);

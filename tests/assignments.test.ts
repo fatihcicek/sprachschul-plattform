@@ -38,7 +38,7 @@ beforeAll(async () => {
   await admin.query(`CREATE DATABASE ${name}`);
   await admin.end();
   ({ db, pool } = createDb(testUrl.toString()));
-  await migrate(db, { migrationsFolder: "drizzle" });
+  await migrate(db as never, { migrationsFolder: "drizzle" });
   orgId = randomUUID();
   await run(async (tx) => {
     await tx.insert(s.organizations).values({ id: orgId, name: "Schule", slug: "schule" });

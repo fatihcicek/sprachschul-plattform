@@ -1,0 +1,50 @@
+# Bei jedem Stand auf main: prüfen, Paket bauen und auf den Zweig "deploy" legen.
+# Der Server (Namecheap) holt sich diesen Zweig alle paar Minuten selbst ab.
+name: Prüfen und ausliefern
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kurswerk
+          POSTGRES_PASSWORD: kurswerk
+          POSTGRES_DB: kurswerk
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kurswerk" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kurswerk:kurswerk@localhost:5432/kurswerk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: ./scripts/bundle.sh
+      - name: Paket auf den Zweig deploy legen
+        run: |
+          cd dist
+          git init -q -b deploy
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A -f
+          git commit -q -m "Paket aus ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" deploy
