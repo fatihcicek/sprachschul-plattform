@@ -1,17 +1,63 @@
 // Legt eine Beispielschule mit erfundenen Personen an. Nur für Entwicklung und Tests.
 
 import { randomUUID } from "node:crypto";
-import { withOrganization, withSlugLookup, type Db } from "./client";
+import { eq } from "drizzle-orm";
+import { withOrganization, withSlugLookup, type Db, type Tx } from "./client";
 import * as s from "./schema";
 import { proposeAttendance } from "../server/attendance";
 import { createPerson } from "../server/people";
 
 const SLUG = "beispielschule";
+const NAMES: [string, string][] = [
+  ["Amina", "Yusuf"], ["Dmytro", "Kovalenko"], ["Layla", "Rahimi"], ["Carlos", "Mendes"],
+  ["Thi", "Nguyen"], ["Ivan", "Petrov"], ["Fatima", "Al-Sayed"], ["Mehmet", "Kaya"],
+];
 const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00+01:00`);
+
+// Einwahlen wie im Prototyp: Verspätung, Unterbrechung, vorzeitiges Gehen, Fehlen.
+const LOG: [number, string, string][] = [
+  [0, "17:58", "21:15"], [1, "18:00", "21:15"], [2, "18:22", "21:15"], [3, "18:01", "19:10"], [3, "19:14", "21:15"],
+  [4, "18:00", "21:14"], [5, "18:00", "19:32"], [7, "18:03", "21:15"],
+];
+const logFor = (orgId: string, learners: string[], sessionId: string, day: string) =>
+  LOG.flatMap(([i, from, to]) =>
+    (["JOIN", "LEAVE"] as const).map((type) => {
+      const hhmm = type === "JOIN" ? from : to;
+      return { organizationId: orgId, sessionId, membershipId: learners[i]!, type, occurredAt: at(day, hhmm), source: "seed", dedupKey: `${sessionId}:${i}:${type}:${hhmm}` };
+    }),
+  );
+
+/** Ein früherer Termin, an dem noch Bestätigung und Klassenbuch fehlen: so zeigt „Heute“ offene Punkte. */
+async function addEarlierSession(tx: Tx, orgId: string, courseId: string, learners: string[]) {
+  const [earlier] = await tx
+    .insert(s.lessonSessions)
+    .values({ organizationId: orgId, courseId, startsAt: at("2026-11-05", "18:00"), endsAt: at("2026-11-05", "21:15"), plannedUe: 4, mode: "VIRTUAL", status: "ENDED" })
+    .returning();
+  await tx.insert(s.connectionEvents).values(logFor(orgId, learners, earlier!.id, "2026-11-05"));
+  await proposeAttendance(tx, earlier!.id);
+}
+
+/** Ergänzt Beispielschulen, die vor dem früheren Termin angelegt wurden (Testumgebung behält ihre Daten). */
+async function topUpDemo(db: Db, orgId: string) {
+  await withOrganization(db, orgId, async (tx) => {
+    const [course] = await tx.select().from(s.courses).where(eq(s.courses.name, "BSK B2 – Abendkurs"));
+    if (!course) return;
+    const sessions = await tx.select().from(s.lessonSessions).where(eq(s.lessonSessions.courseId, course.id));
+    if (sessions.some((x) => x.startsAt.getTime() === at("2026-11-05", "18:00").getTime())) return;
+    const rows = await tx.select({ id: s.memberships.id, email: s.users.email }).from(s.memberships).innerJoin(s.users, eq(s.users.id, s.memberships.userId));
+    const byEmail = new Map(rows.map((r) => [r.email, r.id]));
+    const learners = NAMES.map(([f, l]) => byEmail.get(`${f}.${l}@beispielschule.test`.toLowerCase().replaceAll(" ", "-")));
+    if (learners.some((x) => !x)) return;
+    await addEarlierSession(tx, orgId, course.id, learners as string[]);
+  });
+}
 
 export async function seedDemo(db: Db): Promise<boolean> {
   const [existing] = await withSlugLookup(db, SLUG, (tx) => tx.select({ id: s.organizations.id }).from(s.organizations));
-  if (existing) return false;
+  if (existing) {
+    await topUpDemo(db, existing.id);
+    return false;
+  }
   const orgId = randomUUID();
   await withOrganization(db, orgId, async (tx) => {
     await tx.insert(s.organizations).values({ id: orgId, name: "Beispielschule", slug: SLUG });
@@ -21,12 +67,8 @@ export async function seedDemo(db: Db): Promise<boolean> {
     };
     await member("ADMIN", "Sabine", "Brandt");
     const teacher = await member("TEACHER", "Jonas", "Weber");
-    const names: [string, string][] = [
-      ["Amina", "Yusuf"], ["Dmytro", "Kovalenko"], ["Layla", "Rahimi"], ["Carlos", "Mendes"],
-      ["Thi", "Nguyen"], ["Ivan", "Petrov"], ["Fatima", "Al-Sayed"], ["Mehmet", "Kaya"],
-    ];
     const learners: string[] = [];
-    for (const [first, last] of names) learners.push(await member("LEARNER", first, last));
+    for (const [first, last] of NAMES) learners.push(await member("LEARNER", first, last));
 
     const [course] = await tx
       .insert(s.courses)
@@ -41,19 +83,9 @@ export async function seedDemo(db: Db): Promise<boolean> {
       .returning();
     await tx.insert(s.lessonSessions).values({ organizationId: orgId, courseId: course!.id, startsAt: at("2026-11-12", "18:00"), endsAt: at("2026-11-12", "21:15"), plannedUe: 4, mode: "VIRTUAL" });
 
-    // Einwahlen wie im Prototyp: Verspätung, Unterbrechung, vorzeitiges Gehen, Fehlen.
-    const log: [number, string, string][] = [
-      [0, "17:58", "21:15"], [1, "18:00", "21:15"], [2, "18:22", "21:15"], [3, "18:01", "19:10"], [3, "19:14", "21:15"],
-      [4, "18:00", "21:14"], [5, "18:00", "19:32"], [7, "18:03", "21:15"],
-    ];
-    await tx.insert(s.connectionEvents).values(
-      log.flatMap(([i, from, to]) =>
-        (["JOIN", "LEAVE"] as const).map((type) => {
-          const hhmm = type === "JOIN" ? from : to;
-          return { organizationId: orgId, sessionId: session!.id, membershipId: learners[i]!, type, occurredAt: at("2026-11-10", hhmm), source: "seed", dedupKey: `${session!.id}:${i}:${type}:${hhmm}` };
-        }),
-      ),
-    );
+    await tx.insert(s.connectionEvents).values(logFor(orgId, learners, session!.id, "2026-11-10"));
+
+    await addEarlierSession(tx, orgId, course!.id, learners);
     await tx.insert(s.assignments).values([
       {
         organizationId: orgId,

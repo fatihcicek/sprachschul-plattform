@@ -9,5 +9,5 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   if (!(await getSession())) redirect("/login");
   const role = await asSessionUser(async (tx, me) => (await tx.select().from(memberships).where(eq(memberships.id, me)))[0]?.role);
-  redirect(role === "LEARNER" ? "/aufgaben" : role === "TEACHER" ? "/lehrkraft" : role === "ADMIN" || role === "STAFF" ? "/verwaltung" : "/login");
+  redirect(role === "LEARNER" ? "/aufgaben" : role === "TEACHER" ? "/lehrkraft" : role === "ADMIN" || role === "STAFF" ? "/verwaltung/heute" : "/login");
 }
