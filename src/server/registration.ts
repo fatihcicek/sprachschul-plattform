@@ -3,6 +3,7 @@
 
 import { randomUUID } from "node:crypto";
 import { and, count, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
+import { INVITATION_DAYS } from "@/domain/password";
 import { withRegistrationAccess, type Db } from "@/db/client";
 import { auditEvents, organizations, registrationAttempts, registrations } from "@/db/schema";
 import {
@@ -11,6 +12,7 @@ import {
   hashRegistrationToken,
   isRegistrationToken,
   newRegistrationToken,
+  passwordLinkMail,
   rateKey,
   REGISTRATION_LIMITS,
   slugFromName,
@@ -158,4 +160,35 @@ export async function confirmRegistration(db: Db, token: string, now: Date = new
     });
     return { ok: true, slug, invitationToken, email: row.email } as const;
   });
+}
+
+/**
+ * Schickt nach der Bestätigung den Link zum Passwort-Setzen an die Adresse der Registrierung. Best effort mit Zeitlimit:
+ * Die Person landet ohnehin gleich auf der Passwortseite, ein hängender Mailserver darf sie nicht aufhalten
+ * und die Bestätigung nicht rückgängig machen. Gibt zurück, ob die Mail rausging.
+ */
+export async function sendPasswordLinkMail(
+  mailer: Mailer,
+  baseUrl: string | null,
+  confirmed: { email: string; slug: string; invitationToken: string },
+  timeoutMs = 5000,
+): Promise<boolean> {
+  if (!baseUrl) {
+    console.error("Passwort-Link-Mail nicht gesendet: APP_URL fehlt oder ist ungültig");
+    return false;
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const mail = passwordLinkMail(`${baseUrl.replace(/\/+$/, "")}/einladung/${confirmed.invitationToken}`, confirmed.slug, INVITATION_DAYS);
+    await Promise.race([
+      mailer.send({ to: confirmed.email, subject: mail.subject, text: mail.text }),
+      new Promise((_, reject) => (timer = setTimeout(() => reject(new Error("Zeitüberschreitung")), timeoutMs))),
+    ]);
+    return true;
+  } catch (e) {
+    console.error("Passwort-Link-Mail fehlgeschlagen", e instanceof Error ? e.name : "Fehler");
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }

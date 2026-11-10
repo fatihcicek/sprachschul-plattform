@@ -12,7 +12,7 @@ import * as s from "@/db/schema";
 import { clientIpFrom, mailboxKey, passwordLinkMail, confirmationMail, hashRegistrationToken, isRegistrationToken, newRegistrationToken, parseRegistration, rateKey, REGISTRATION_LIMITS, slugFromName } from "@/domain/registration";
 import { invitationIsValid } from "@/server/auth";
 import { isValidAddress, memoryMailer, type Mailer } from "@/server/mailer";
-import { confirmRegistration, previewRegistration, requestRegistration, wasConfirmed } from "@/server/registration";
+import { confirmRegistration, previewRegistration, requestRegistration, sendPasswordLinkMail, wasConfirmed } from "@/server/registration";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 const baseUrl = process.env.DATABASE_URL;
@@ -380,5 +380,31 @@ describe("Passwort-Link-Mail", () => {
     expect(m.text).toContain("sprachwerk-x1y2");
     expect(m.text).toContain("7 Tage");
     expect(m.text).not.toMatch(/[<>]/);
+  });
+});
+
+describe("Versand des Passwort-Links", () => {
+  const confirmed = { email: "leitung@beispielschule.test", slug: "schule-ab12", invitationToken: "tok123" };
+  it("sendet den Link an die Adresse der Registrierung", async () => {
+    const mailer = memoryMailer();
+    expect(await sendPasswordLinkMail(mailer, "https://kurswerk.test/", confirmed)).toBe(true);
+    expect(mailer.sent).toHaveLength(1);
+    expect(mailer.sent[0]?.to).toBe(confirmed.email);
+    expect(mailer.sent[0]?.text).toContain("https://kurswerk.test/einladung/tok123");
+  });
+  it("ohne gültige Basisadresse wird nichts gesendet", async () => {
+    const mailer = memoryMailer();
+    expect(await sendPasswordLinkMail(mailer, null, confirmed)).toBe(false);
+    expect(mailer.sent).toHaveLength(0);
+  });
+  it("ein Mailfehler wirft nicht und meldet false", async () => {
+    const broken: Mailer = { send: async () => { throw new Error("SMTP kaputt"); } };
+    expect(await sendPasswordLinkMail(broken, "https://kurswerk.test", confirmed)).toBe(false);
+  });
+  it("ein hängender Mailserver hält nicht länger als das Zeitlimit auf", async () => {
+    const hanging: Mailer = { send: () => new Promise(() => {}) };
+    const t0 = Date.now();
+    expect(await sendPasswordLinkMail(hanging, "https://kurswerk.test", confirmed, 50)).toBe(false);
+    expect(Date.now() - t0).toBeLessThan(1000);
   });
 });

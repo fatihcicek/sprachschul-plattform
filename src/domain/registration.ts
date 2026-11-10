@@ -107,7 +107,7 @@ export function passwordLinkMail(link: string, slug: string, invitationDays: num
       "",
       link,
       "",
-      `Der Link gilt ${invitationDays} Tage und kann nur einmal verwendet werden.`,
+      `Der Link gilt ${invitationDays} Tage und kann nur einmal verwendet werden. Gib ihn nicht weiter: Wer ihn zuerst öffnet, legt das Passwort fest.`,
       "",
       `Danach meldest du dich mit dieser E-Mail-Adresse und dem Schulkürzel ${slug} an.`,
       "Wenn du das nicht warst, ignoriere diese E-Mail.",

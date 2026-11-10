@@ -21,7 +21,7 @@ export default async function Bestaetigen({ params }: { params: Promise<{ token:
         </div>
       ) : done ? (
         <div className="okbox" role="status">
-          Diese Registrierung hast du schon bestätigt. Wir haben dir den Link zum Festlegen deines Passworts per E-Mail geschickt. Schau auch im Spam-Ordner nach. <Link href="/login">Zur Anmeldung</Link>
+          Diese Registrierung hast du schon bestätigt. Der Link zum Festlegen deines Passworts sollte per E-Mail bei dir sein, schau auch im Spam-Ordner nach. Ist keine Mail angekommen, wende dich bitte an den Betreiber von Kurswerk. <Link href="/login">Zur Anmeldung</Link>
         </div>
       ) : (
         <div className="err" role="alert">
