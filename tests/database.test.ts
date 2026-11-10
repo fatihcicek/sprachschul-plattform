@@ -10,6 +10,7 @@ import { Client, type Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, withOrganization, type Db } from "@/db/client";
 import * as s from "@/db/schema";
+import { createPerson } from "@/server/people";
 import { changeAttendanceStatus, confirmAttendance, NotAllowedError, proposeAttendance } from "@/server/attendance";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -36,9 +37,7 @@ async function createSchool(name: string): Promise<School> {
   return withOrganization(db, orgId, async (tx) => {
     await tx.insert(s.organizations).values({ id: orgId, name, slug: name.toLowerCase() });
     const member = async (role: (typeof s.role.enumValues)[number], first: string) => {
-      const [u] = await tx.insert(s.users).values({ email: `${first}@${name}.test`.toLowerCase(), firstName: first, lastName: name }).returning();
-      const [m] = await tx.insert(s.memberships).values({ organizationId: orgId, userId: u!.id, role }).returning();
-      return m!.id;
+      return (await createPerson(tx, orgId, { email: `${first}@${name}.test`.toLowerCase(), firstName: first, lastName: name, role })).membershipId;
     };
     const teacher = await member("TEACHER", "Lehrkraft");
     const otherTeacher = await member("TEACHER", "Vertretung");
@@ -87,6 +86,35 @@ describe("Mandantentrennung in der Datenbank", () => {
     expect(await db.select().from(s.courses)).toEqual([]);
     expect(await db.select().from(s.memberships)).toEqual([]);
     expect(await db.select().from(s.organizations)).toEqual([]);
+  });
+
+  it("zeigt jeder Schule nur die eigenen Personen", async () => {
+    const own = await withOrganization(db, a.orgId, (tx) => tx.select().from(s.users));
+    expect(own.length).toBe(6);
+    expect(own.every((u) => u.email.endsWith("@alpha.test"))).toBe(true);
+    expect(await db.select().from(s.users)).toEqual([]);
+  });
+
+  it("lässt keine Schule Personen der anderen lesen, ändern oder übernehmen", async () => {
+    const [foreign] = await withOrganization(db, b.orgId, (tx) => tx.select().from(s.users));
+    const seen = await withOrganization(db, a.orgId, (tx) => tx.select().from(s.users).where(eq(s.users.id, foreign!.id)));
+    expect(seen).toEqual([]);
+    const changed = await withOrganization(db, a.orgId, (tx) => tx.update(s.users).set({ email: "x@evil.test" }).where(eq(s.users.id, foreign!.id)).returning());
+    expect(changed).toEqual([]);
+    await expect(
+      withOrganization(db, a.orgId, (tx) => tx.insert(s.memberships).values({ organizationId: a.orgId, userId: foreign!.id, role: "LEARNER" })),
+    ).rejects.toThrow();
+    await expect(
+      withOrganization(db, a.orgId, (tx) => tx.insert(s.users).values({ organizationId: b.orgId, email: "y@beta.test", firstName: "Y", lastName: "Z" })),
+    ).rejects.toThrow();
+  });
+
+  it("erlaubt dieselbe E-Mail an zwei Schulen als zwei getrennte Personen", async () => {
+    const email = "eins@alpha.test";
+    await withOrganization(db, b.orgId, (tx) => createPerson(tx, b.orgId, { email, firstName: "Eins", lastName: "Beta", role: "LEARNER" }));
+    const inA = await withOrganization(db, a.orgId, (tx) => tx.select().from(s.users).where(eq(s.users.email, email)));
+    expect(inA).toHaveLength(1);
+    expect(inA[0]!.lastName).toBe("Alpha");
   });
 
   it("zeigt jeder Schule nur die eigenen Daten", async () => {
