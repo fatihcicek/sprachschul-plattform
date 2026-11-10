@@ -9,10 +9,10 @@ import { registrationBaseUrl, registrationOpen, showLinkOnPage } from "@/server/
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, withOrganization, withRegistrationAccess, withSlugLookup, type Db } from "@/db/client";
 import * as s from "@/db/schema";
-import { clientIpFrom, mailboxKey, confirmationMail, hashRegistrationToken, isRegistrationToken, newRegistrationToken, parseRegistration, rateKey, REGISTRATION_LIMITS, slugFromName } from "@/domain/registration";
+import { clientIpFrom, mailboxKey, passwordLinkMail, confirmationMail, hashRegistrationToken, isRegistrationToken, newRegistrationToken, parseRegistration, rateKey, REGISTRATION_LIMITS, slugFromName } from "@/domain/registration";
 import { invitationIsValid } from "@/server/auth";
 import { isValidAddress, memoryMailer, type Mailer } from "@/server/mailer";
-import { confirmRegistration, previewRegistration, requestRegistration } from "@/server/registration";
+import { confirmRegistration, previewRegistration, requestRegistration, sendPasswordLinkMail, wasConfirmed } from "@/server/registration";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 const baseUrl = process.env.DATABASE_URL;
@@ -196,6 +196,23 @@ describe("Bestätigung", () => {
     return tokenFrom(r.link);
   };
 
+  it("erkennt einen schon bestätigten Link, aber keinen offenen, ungültigen oder abgelaufenen", async () => {
+    const token = await register(input({ schoolName: "Schon Bestätigt Schule" }), minutes(7000));
+    expect(await wasConfirmed(db, token, minutes(7001))).toBe(false);
+    expect((await confirmRegistration(db, token, minutes(7001))).ok).toBe(true);
+    expect(await wasConfirmed(db, token, minutes(7002))).toBe(true);
+    expect(await previewRegistration(db, token, minutes(7002))).toBeNull();
+    expect(await wasConfirmed(db, "kaputt", minutes(7002))).toBe(false);
+    expect(await wasConfirmed(db, token, minutes(7000 + 24 * 60 + 1))).toBe(false);
+  });
+
+  it("liefert nach der Bestätigung die Adresse für die Passwort-Link-Mail", async () => {
+    const i = input({ schoolName: "Mail Schule" });
+    const token = await register(i, minutes(7100));
+    const r = await confirmRegistration(db, token, minutes(7101));
+    expect(r.ok && r.email).toBe(i.email);
+  });
+
   it("zeigt vor dem Bestätigen den Schulnamen, ändert aber nichts", async () => {
     const token = await register(input({ schoolName: "Vorschau Schule" }));
     expect(await previewRegistration(db, token, minutes(6001))).toEqual({ schoolName: "Vorschau Schule" });
@@ -355,5 +372,42 @@ describe("Schutz vor Missbrauch (ohne Datenbank)", () => {
     expect(registrationBaseUrl({ APP_URL: "https://x.org/pfad" })).toBeNull();
     expect(registrationBaseUrl({ NODE_ENV: "production" })).toBeNull();
     expect(registrationBaseUrl({ NODE_ENV: "development" })).toBe("http://localhost:3000");
+  });
+});
+
+describe("Passwort-Link-Mail", () => {
+  it("hat einen festen Text mit Link, Gültigkeit und Schulkürzel, ohne Eingaben der Person", () => {
+    const m = passwordLinkMail("https://kurswerk.test/einladung/abc", "sprachwerk-x1y2", 7);
+    expect(m.subject).toContain("Passwort");
+    expect(m.text).toContain("https://kurswerk.test/einladung/abc");
+    expect(m.text).toContain("sprachwerk-x1y2");
+    expect(m.text).toContain("7 Tage");
+    expect(m.text).not.toMatch(/[<>]/);
+  });
+});
+
+describe("Versand des Passwort-Links", () => {
+  const confirmed = { email: "leitung@beispielschule.test", slug: "schule-ab12", invitationToken: "tok123" };
+  it("sendet den Link an die Adresse der Registrierung", async () => {
+    const mailer = memoryMailer();
+    expect(await sendPasswordLinkMail(mailer, "https://kurswerk.test/", confirmed)).toBe(true);
+    expect(mailer.sent).toHaveLength(1);
+    expect(mailer.sent[0]?.to).toBe(confirmed.email);
+    expect(mailer.sent[0]?.text).toContain("https://kurswerk.test/einladung/tok123");
+  });
+  it("ohne gültige Basisadresse wird nichts gesendet", async () => {
+    const mailer = memoryMailer();
+    expect(await sendPasswordLinkMail(mailer, null, confirmed)).toBe(false);
+    expect(mailer.sent).toHaveLength(0);
+  });
+  it("ein Mailfehler wirft nicht und meldet false", async () => {
+    const broken: Mailer = { send: async () => { throw new Error("SMTP kaputt"); } };
+    expect(await sendPasswordLinkMail(broken, "https://kurswerk.test", confirmed)).toBe(false);
+  });
+  it("ein hängender Mailserver hält nicht länger als das Zeitlimit auf", async () => {
+    const hanging: Mailer = { send: () => new Promise(() => {}) };
+    const t0 = Date.now();
+    expect(await sendPasswordLinkMail(hanging, "https://kurswerk.test", confirmed, 50)).toBe(false);
+    expect(Date.now() - t0).toBeLessThan(1000);
   });
 });

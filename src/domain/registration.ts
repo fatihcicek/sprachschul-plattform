@@ -95,6 +95,30 @@ export function confirmationMail(link: string): { subject: string; text: string 
 
 
 /**
+ * Mail nach der Bestätigung: Link zum Passwort-Setzen. So geht nichts verloren, wenn jemand den Tab schließt.
+ * Fester Text; Kürzel und Link erzeugt das System selbst, nichts davon stammt aus Eingaben.
+ */
+export function passwordLinkMail(link: string, slug: string, invitationDays: number): { subject: string; text: string } {
+  return {
+    subject: "Dein Kurswerk-Zugang: Passwort festlegen",
+    text: [
+      "Hallo,",
+      "",
+      `deine Schule wurde bei Kurswerk angelegt, die ${TRIAL_DAYS}-tägige Testzeit läuft. Lege mit diesem Link dein Passwort fest:`,
+      "",
+      link,
+      "",
+      `Der Link gilt ${invitationDays} Tage und kann nur einmal verwendet werden. Gib ihn nicht weiter: Wer ihn zuerst öffnet, legt das Passwort fest.`,
+      "",
+      `Danach meldest du dich mit dieser E-Mail-Adresse und dem Schulkürzel ${slug} an.`,
+      "Wenn du das nicht warst, ignoriere diese E-Mail.",
+      "",
+      "Kurswerk",
+    ].join("\n"),
+  };
+}
+
+/**
  * Schlüssel für die Begrenzung pro Postfach: Plus-Zusätze und bei Gmail die Punkte zählen nicht als andere Adresse,
  * sonst ließe sich ein Postfach über viele Varianten mit Mails fluten.
  */
