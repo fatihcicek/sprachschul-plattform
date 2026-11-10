@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createCourseAction } from "@/app/actions";
 import { checkPlan, COURSE_TYPE_SUGGESTIONS, expandPlan, WEEKDAY_LABELS, type Weekday, type WeeklyPlan } from "@/domain/course-plan";
-import { IMPORT_TEMPLATE, parsePeopleTable } from "@/domain/people-import";
+import { decodeTableFile, IMPORT_TEMPLATE, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, parsePeopleTable } from "@/domain/people-import";
 
 type Person = { membershipId: string; firstName: string; lastName: string; email: string };
 type NewLearner = { key: number; firstName: string; lastName: string; email: string; bamfFunded: boolean };
 
+const norm = (s: string) => s.trim().toLowerCase();
 const STEPS = ["Kursdaten", "Termine", "Lehrkraft", "Teilnehmende"] as const;
 const WEEKDAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 7];
 const monthFmt = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -61,8 +62,8 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
   const shown = learners.filter((l) => `${l.firstName} ${l.lastName} ${l.email}`.toLowerCase().includes(filter.toLowerCase()));
 
   function applyImport(text: string) {
-    const { people, problems } = parsePeopleTable(text);
-    const learnerByEmail = new Map(learners.map((l) => [l.email.toLowerCase(), l.membershipId]));
+    const { people, problems, hasBamfColumn } = parsePeopleTable(text);
+    const learnerByEmail = new Map(learners.map((l) => [l.email.toLowerCase(), l]));
     const teacherEmails = new Set(teachers.map((t) => t.email.toLowerCase()));
     const already = new Set(newLearners.map((n) => n.email.trim().toLowerCase()));
     const notes: { line: number; text: string }[] = problems.map((p) => ({ line: p.line, text: p.line ? `Zeile ${p.line}: ${p.message}` : p.message }));
@@ -70,24 +71,35 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
     const added: NewLearner[] = [];
     let existing = 0;
     let key = nextKey;
+    const keptNew = newLearners.filter((n) => n.firstName.trim() || n.lastName.trim() || n.email.trim());
+    let total = Object.keys(nextPicked).length + keptNew.length;
     for (const p of people) {
-      const mid = learnerByEmail.get(p.email);
-      if (mid) {
-        nextPicked[mid] = p.bamfFunded || Boolean(nextPicked[mid]);
+      const known = learnerByEmail.get(p.email);
+      if (!known && !teacherEmails.has(p.email) && !already.has(p.email) && total >= MAX_IMPORT_ROWS) {
+        notes.push({ line: p.line, text: `Zeile ${p.line}: höchstens ${MAX_IMPORT_ROWS} Teilnehmende je Kurs, Rest nicht übernommen` });
+        break;
+      }
+      if (known) {
+        if (!(known.membershipId in nextPicked)) total++;
+        nextPicked[known.membershipId] = hasBamfColumn ? p.bamfFunded : Boolean(nextPicked[known.membershipId]);
         existing++;
+        if (norm(known.firstName) !== norm(p.firstName) || norm(known.lastName) !== norm(p.lastName))
+          notes.push({ line: p.line, text: `Zeile ${p.line}: ${p.email} ist an der Schule als ${known.firstName} ${known.lastName} geführt (in der Tabelle: ${p.firstName} ${p.lastName})` });
       } else if (teacherEmails.has(p.email)) notes.push({ line: p.line, text: `Zeile ${p.line}: ${p.email} gehört zu einer Lehrkraft` });
       else if (already.has(p.email)) notes.push({ line: p.line, text: `Zeile ${p.line}: ${p.email} steht schon in der Liste` });
       else {
         added.push({ key: key++, firstName: p.firstName, lastName: p.lastName, email: p.email, bamfFunded: p.bamfFunded });
         already.add(p.email);
+        total++;
       }
     }
     setPicked(nextPicked);
-    setNewLearners((x) => [...x.filter((n) => n.firstName.trim() || n.lastName.trim() || n.email.trim()), ...added]);
+    setNewLearners([...keptNew, ...added]);
+    if (people.length && !hasBamfColumn) notes.push({ line: 0, text: "Keine BAMF-Spalte gefunden: BAMF bitte bei Bedarf unten ankreuzen." });
     setNextKey(key);
     setImportReport({
       summary: `${existing + added.length} übernommen: ${existing} schon an der Schule (ausgewählt), ${added.length} neu.`,
-      problems: notes.sort((a, b) => a.line - b.line).map((n) => n.text),
+      problems: notes.sort((a, b) => (a.line || 1e9) - (b.line || 1e9)).map((n) => n.text),
     });
     if (existing + added.length > 0) {
       setImportText("");
@@ -285,8 +297,13 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
                           accept=".csv,.txt,text/csv"
                           onChange={async (e) => {
                             const f = e.target.files?.[0];
-                            if (f) applyImport(await f.text());
                             e.target.value = "";
+                            if (!f) return;
+                            if (f.size > MAX_IMPORT_BYTES) {
+                              setImportReport({ summary: "Die Datei ist zu groß (höchstens 1 MB).", problems: [] });
+                              return;
+                            }
+                            applyImport(decodeTableFile(new Uint8Array(await f.arrayBuffer())));
                           }}
                         />
                       </label>
