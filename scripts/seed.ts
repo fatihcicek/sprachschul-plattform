@@ -63,6 +63,24 @@ async function main() {
         }),
       ),
     );
+    await tx.insert(s.assignments).values([
+      {
+        organizationId: orgId,
+        courseId: course!.id,
+        title: "Beschwerdebrief an einen Online-Händler",
+        instructions: "Sie haben ein Paket bestellt, das beschädigt angekommen ist. Schreiben Sie eine formelle Beschwerde (ca. 120 Wörter):\n– Was haben Sie bestellt und wann?\n– Was ist das Problem?\n– Was erwarten Sie vom Händler?",
+        dueAt: at("2026-11-17", "18:00"),
+        createdByMembershipId: teacher,
+      },
+      {
+        organizationId: orgId,
+        courseId: course!.id,
+        title: "E-Mail an die Teamleitung: Urlaubsantrag",
+        instructions: "Bitten Sie Ihre Teamleitung per E-Mail um zwei Wochen Urlaub im Januar. Begründen Sie kurz und schlagen Sie eine Vertretung vor (ca. 80 Wörter).",
+        dueAt: null,
+        createdByMembershipId: teacher,
+      },
+    ]);
     const result = await proposeAttendance(tx, session!.id);
     console.log(`Beispielschule angelegt: 8 Teilnehmende, 2 Termine, ${result.proposed} Anwesenheitsvorschläge.`);
   });

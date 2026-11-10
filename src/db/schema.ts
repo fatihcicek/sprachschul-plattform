@@ -31,6 +31,10 @@ export const attendanceStatus = pgEnum("attendance_status", ["PRESENT", "PARTIAL
 // PROPOSED: Vorschlag des Systems aus dem Einwahlprotokoll. CONFIRMED: von einer Lehrkraft bestätigt.
 export const reviewState = pgEnum("review_state", ["PROPOSED", "CONFIRMED"]);
 
+// DRAFT: Entwurf, nur für die Person selbst. SUBMITTED: bei der Lehrkraft, nicht mehr änderbar.
+// RETURNED: Rückmeldung liegt vor; die Person kann überarbeiten und erneut abgeben.
+export const submissionStatus = pgEnum("submission_status", ["DRAFT", "SUBMITTED", "RETURNED"]);
+
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -245,5 +249,82 @@ export const auditEvents = pgTable(
   (t) => [
     index().on(t.organizationId, t.entity, t.entityId),
     foreignKey({ columns: [t.actorMembershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] }),
+  ],
+);
+
+// Eine Aufgabe, die eine Lehrkraft einem Kurs stellt.
+export const assignments = pgTable(
+  "assignments",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    courseId: uuid("course_id").notNull(),
+    title: text("title").notNull(),
+    instructions: text("instructions").notNull(),
+    dueAt: ts("due_at"),
+    createdByMembershipId: uuid("created_by_membership_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique().on(t.id, t.organizationId),
+    index().on(t.organizationId, t.courseId),
+    foreignKey({ columns: [t.courseId, t.organizationId], foreignColumns: [courses.id, courses.organizationId] }),
+    foreignKey({ columns: [t.createdByMembershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] }),
+  ],
+);
+
+// Die Bearbeitung einer Aufgabe durch eine Person: aktueller Entwurf und Stand.
+export const submissions = pgTable(
+  "submissions",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    assignmentId: uuid("assignment_id").notNull(),
+    membershipId: uuid("membership_id").notNull(),
+    status: submissionStatus("status").notNull().default("DRAFT"),
+    draftText: text("draft_text").notNull().default(""),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique().on(t.assignmentId, t.membershipId),
+    unique().on(t.id, t.organizationId),
+    foreignKey({ columns: [t.assignmentId, t.organizationId], foreignColumns: [assignments.id, assignments.organizationId] }),
+    foreignKey({ columns: [t.membershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] }),
+  ],
+);
+
+// Jede Abgabe ist eine eigene, unveränderliche Version.
+export const submissionVersions = pgTable(
+  "submission_versions",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    submissionId: uuid("submission_id").notNull(),
+    versionNo: integer("version_no").notNull(),
+    text: text("text").notNull(),
+    submittedAt: ts("submitted_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique().on(t.submissionId, t.versionNo),
+    unique().on(t.id, t.organizationId),
+    foreignKey({ columns: [t.submissionId, t.organizationId], foreignColumns: [submissions.id, submissions.organizationId] }),
+  ],
+);
+
+// Rückmeldung der Lehrkraft zu genau einer Version. Unveränderlich.
+export const feedbacks = pgTable(
+  "feedbacks",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    versionId: uuid("version_id").notNull().unique(),
+    authorMembershipId: uuid("author_membership_id").notNull(),
+    comment: text("comment").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.versionId, t.organizationId], foreignColumns: [submissionVersions.id, submissionVersions.organizationId] }),
+    foreignKey({ columns: [t.authorMembershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] }),
   ],
 );

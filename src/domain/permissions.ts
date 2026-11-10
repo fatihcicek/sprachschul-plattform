@@ -13,6 +13,8 @@ export const PERMISSIONS = [
   "attendance.correct", // bestätigte Anwesenheit mit Begründung korrigieren
   "register.write", // Klassenbuch eintragen
   "evidence.export", // Nachweise erzeugen
+  "assignment.manage", // Aufgaben stellen
+  "assignment.review", // Abgaben lesen und Rückmeldung geben
   "course.participate", // am Unterricht teilnehmen, Aufgaben abgeben
 ] as const;
 
@@ -24,7 +26,7 @@ const MATRIX: Record<Role, readonly Permission[]> = {
   ADMIN: ALL.filter((p) => p !== "course.participate"),
   STAFF: ["course.configure", "enrollment.manage", "session.schedule", "attendance.correct", "evidence.export"],
   // Lehrkräfte ändern weder Kursdaten noch die Kurszuordnung (bei Seconos war beides sichtbar).
-  TEACHER: ["session.teach", "attendance.review", "attendance.correct", "register.write"],
+  TEACHER: ["session.teach", "attendance.review", "attendance.correct", "register.write", "assignment.manage", "assignment.review"],
   LEARNER: ["course.participate"],
 };
 
@@ -33,7 +35,7 @@ export function can(role: Role, permission: Permission): boolean {
 }
 
 /** Rechte, die nur für Kurse gelten, denen die Lehrkraft zugeordnet ist. */
-const COURSE_BOUND: readonly Permission[] = ["session.teach", "attendance.review", "attendance.correct", "register.write"];
+const COURSE_BOUND: readonly Permission[] = ["session.teach", "attendance.review", "attendance.correct", "register.write", "assignment.manage", "assignment.review"];
 
 export type Actor = { role: Role; active: boolean; assignedCourseIds: readonly string[] };
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Kurswerk",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="de">
-      <body style={{ margin: 0, fontFamily: "system-ui, sans-serif", background: "#F6F4EF", color: "#14213D" }}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }

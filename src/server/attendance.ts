@@ -15,32 +15,10 @@ import {
 } from "@/db/schema";
 import { computePresence, planStatusChange, proposeStatus, type AttendanceStatus } from "@/domain/attendance";
 import { localDay } from "@/domain/schedule";
-import { canInCourse, type Actor, type Permission } from "@/domain/permissions";
+import type { Permission } from "@/domain/permissions";
+import { loadActor, NotAllowedError, requireInCourse } from "@/server/actor";
 
-export class NotAllowedError extends Error {
-  constructor(permission: Permission) {
-    super(`Keine Berechtigung: ${permission}`);
-  }
-}
-
-async function loadActor(tx: Tx, membershipId: string): Promise<Actor & { organizationId: string }> {
-  const [m] = await tx.select().from(memberships).where(eq(memberships.id, membershipId));
-  if (!m) throw new Error("Unbekanntes Konto");
-  const assigned =
-    m.role === "LEARNER"
-      ? await tx.select({ courseId: enrollments.courseId }).from(enrollments).where(eq(enrollments.membershipId, m.id))
-      : await tx
-          .select({ courseId: teachingAssignments.courseId })
-          .from(teachingAssignments)
-          .where(eq(teachingAssignments.membershipId, m.id));
-  return { role: m.role, active: m.active, assignedCourseIds: assigned.map((a) => a.courseId), organizationId: m.organizationId };
-}
-
-async function requireInCourse(tx: Tx, actorMembershipId: string, permission: Permission, courseId: string) {
-  const actor = await loadActor(tx, actorMembershipId);
-  if (!canInCourse(actor, permission, courseId)) throw new NotAllowedError(permission);
-  return actor;
-}
+export { NotAllowedError };
 
 async function loadSession(tx: Tx, sessionId: string) {
   const [session] = await tx.select().from(lessonSessions).where(eq(lessonSessions.id, sessionId));

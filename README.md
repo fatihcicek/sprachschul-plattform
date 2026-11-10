@@ -42,3 +42,17 @@ npm run dev
 Die Datenbankrolle der Anwendung darf kein Superuser sein und kein `BYPASSRLS` haben, sonst greift die Mandantentrennung nicht.
 
 Nach Änderungen an `src/db/schema.ts`: `npm run db:generate`, dann `npm run db:migrate`.
+
+## Erste lauffähige Version: Anmeldung und Aufgaben
+
+```
+npm run db:migrate && npm run db:seed
+npm run dev        # http://localhost:3000
+```
+
+- **Anmeldung:** vorerst eine Demo-Auswahl der Beispielpersonen (`DEMO_LOGIN=1`), gesichert über ein signiertes Cookie (`SESSION_SECRET`). Echte Konten ersetzen später nur `loginAs()` in `src/server/session.ts`.
+- **Teilnehmende** (`/aufgaben`): Aufgabe öffnen, Text schreiben (speichert laufend als Entwurf), bei der Lehrkraft abgeben. Danach ist der Text gesperrt, bis die Rückmeldung da ist; dann überarbeiten und erneut abgeben.
+- **Lehrkraft** (`/lehrkraft`): Aufgaben stellen, Abgaben der eigenen Kurse lesen, Rückmeldung geben.
+- Jede Abgabe ist eine eigene, unveränderliche Version; Rückmeldungen ebenso (Datenbankregel).
+
+Ohne `DEMO_LOGIN=1` ist keine Anmeldung möglich. Die Demo-Anmeldung gehört nicht in einen Betrieb mit echten Daten.

@@ -1,9 +1,13 @@
-export default function Home() {
-  return (
-    <main style={{ maxWidth: 640, margin: "0 auto", padding: "96px 24px", lineHeight: 1.5 }}>
-      <h1 style={{ margin: 0, fontSize: 32 }}>Kurswerk</h1>
-      <p>Das Fundament steht: Datenmodell, Mandantentrennung, Rechte und Anwesenheitslogik.</p>
-      <p>Anmeldung und Oberflächen folgen im nächsten Schritt.</p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { memberships } from "@/db/schema";
+import { getSession } from "@/server/session";
+import { asSessionUser } from "@/server/context";
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  if (!(await getSession())) redirect("/login");
+  const role = await asSessionUser(async (tx, me) => (await tx.select().from(memberships).where(eq(memberships.id, me)))[0]?.role);
+  redirect(role === "LEARNER" ? "/aufgaben" : role === "TEACHER" || role === "ADMIN" ? "/lehrkraft" : "/login");
 }

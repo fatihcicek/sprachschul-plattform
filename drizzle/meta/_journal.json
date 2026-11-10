@@ -15,6 +15,27 @@
       "when": 1794269946952,
       "tag": "0001_sicherheit",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794272041711,
+      "tag": "0002_aufgaben",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794272042355,
+      "tag": "0003_aufgaben_sicherheit",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794272159903,
+      "tag": "0004_anmeldung_demo",
+      "breakpoints": true
     }
   ]
 }
