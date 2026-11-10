@@ -5,10 +5,11 @@ import { existsSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, type Pool } from "pg";
+import { registrationBaseUrl, registrationOpen, showLinkOnPage } from "@/server/registration-config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, withOrganization, withRegistrationAccess, withSlugLookup, type Db } from "@/db/client";
 import * as s from "@/db/schema";
-import { confirmationMail, hashRegistrationToken, isRegistrationToken, newRegistrationToken, parseRegistration, rateKey, REGISTRATION_LIMITS, slugFromName } from "@/domain/registration";
+import { clientIpFrom, mailboxKey, confirmationMail, hashRegistrationToken, isRegistrationToken, newRegistrationToken, parseRegistration, rateKey, REGISTRATION_LIMITS, slugFromName } from "@/domain/registration";
 import { invitationIsValid } from "@/server/auth";
 import { isValidAddress, memoryMailer, type Mailer } from "@/server/mailer";
 import { confirmRegistration, previewRegistration, requestRegistration } from "@/server/registration";
@@ -312,5 +313,44 @@ describe("Schutz in der Datenbank", () => {
     await withOrganization(db, id, (tx) => tx.insert(s.organizations).values({ id, name: "Y", slug: "ohne-zugriff" }));
     const rows = await withOrganization(db, id, (tx) => tx.select().from(s.registrations));
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe("Schutz vor Missbrauch (ohne Datenbank)", () => {
+  it("zählt Plus-Varianten und Gmail-Punkte als dasselbe Postfach", () => {
+    expect(mailboxKey("Opfer+1@example.org")).toBe(mailboxKey("opfer+zwei@example.org"));
+    expect(mailboxKey("o.pfer@gmail.com")).toBe(mailboxKey("opfer+x@googlemail.com"));
+    expect(mailboxKey("o.pfer@example.org")).not.toBe(mailboxKey("opfer@example.org"));
+  });
+  it("liest die Adresse von rechts und kürzt IPv6", () => {
+    expect(clientIpFrom("6.6.6.6, 203.0.113.9")).toBe("203.0.113.9");
+    expect(clientIpFrom("6.6.6.6, 203.0.113.9, 10.0.0.1", 2)).toBe("203.0.113.9");
+    expect(clientIpFrom("2001:db8:1:2:aaaa:bbbb:cccc:dddd")).toBe(clientIpFrom("2001:db8:1:2:1::9"));
+    expect(clientIpFrom(null)).toBe("unbekannt");
+    expect(clientIpFrom("")).toBe("unbekannt");
+  });
+  it("lehnt unsichtbare und Textrichtungs-Zeichen im Schulnamen ab", () => {
+    for (const ch of ["\u202e", "\u200b", "\u2066", "\ufeff"]) {
+      const r = parseRegistration({ schoolName: `Bank${ch}Konto`, firstName: "A", lastName: "B", email: "a@b.de" }, () => true);
+      expect(r.ok).toBe(false);
+    }
+  });
+  it("zeigt den Testlink nur bei Dateiversand ohne SMTP und mit ausdrücklichem Schalter", () => {
+    const base = { MAIL_TRANSPORT: "file", REGISTRATION_SHOW_LINK: "1" };
+    expect(showLinkOnPage(base)).toBe(true);
+    expect(showLinkOnPage({ ...base, SMTP_HOST: "mail.example.org" })).toBe(false);
+    expect(showLinkOnPage({ ...base, MAIL_TRANSPORT: "smtp" })).toBe(false);
+    expect(showLinkOnPage({ MAIL_TRANSPORT: "file" })).toBe(false);
+    expect(showLinkOnPage({})).toBe(false);
+  });
+  it("hält die Registrierung ohne Schalter geschlossen und nimmt nur feste Adressen", () => {
+    expect(registrationOpen({})).toBe(false);
+    expect(registrationOpen({ REGISTRATION_OPEN: "true" })).toBe(false);
+    expect(registrationOpen({ REGISTRATION_OPEN: "1" })).toBe(true);
+    expect(registrationBaseUrl({ APP_URL: "https://schule.example.org/" })).toBe("https://schule.example.org");
+    expect(registrationBaseUrl({ APP_URL: "http://evil.example.org" })).toBeNull();
+    expect(registrationBaseUrl({ APP_URL: "https://x.org/pfad" })).toBeNull();
+    expect(registrationBaseUrl({ NODE_ENV: "production" })).toBeNull();
+    expect(registrationBaseUrl({ NODE_ENV: "development" })).toBe("http://localhost:3000");
   });
 });

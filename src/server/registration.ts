@@ -17,6 +17,7 @@ import {
   TERMS_VERSION,
   TRIAL_DAYS,
   type RegistrationInput,
+  mailboxKey,
 } from "@/domain/registration";
 import type { Mailer } from "@/server/mailer";
 import { createInvitation } from "@/server/auth";
@@ -34,7 +35,7 @@ export async function requestRegistration(
   ctx: { ip: string; secret: string; baseUrl: string; mailer: Mailer; now?: Date },
 ): Promise<RequestResult> {
   const now = ctx.now ?? new Date();
-  const keys = [rateKey(ctx.secret, "ip", ctx.ip), rateKey(ctx.secret, "email", input.email), rateKey(ctx.secret, "global", "all")];
+  const keys = [rateKey(ctx.secret, "ip", ctx.ip), rateKey(ctx.secret, "email", mailboxKey(input.email)), rateKey(ctx.secret, "global", "all")];
   const [ipKey, emailKey, globalKey] = keys as [string, string, string];
   const { token, hash } = newRegistrationToken();
   const since = new Date(now.getTime() - REGISTRATION_LIMITS.windowMinutes * 60_000);

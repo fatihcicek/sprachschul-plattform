@@ -3,27 +3,29 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { parseRegistration } from "@/domain/registration";
+import { clientIpFrom, parseRegistration } from "@/domain/registration";
 import { createMailer, isValidAddress } from "@/server/mailer";
 import { confirmRegistration, requestRegistration } from "@/server/registration";
 import { registrationBaseUrl, registrationOpen, showLinkOnPage } from "@/server/registration-config";
 
-export type RegisterState = { error?: string; field?: string; done?: true; link?: string } | undefined;
+export type RegisterState = { error?: string; field?: string; done?: true; link?: string; values?: Record<string, string> } | undefined;
 
-/** Adresse des Aufrufers für die Begrenzung: der letzte Eintrag von x-forwarded-for stammt vom nächsten vertrauenswürdigen Vermittler. */
+/** Eingaben nach einem Fehler zurückgeben, damit das Formular nicht leer wird. */
+const keep = (f: FormData) => Object.fromEntries(["schoolName", "firstName", "lastName", "email"].map((k) => [k, String(f.get(k) ?? "")]).concat([["terms", f.get("terms") === "on" ? "on" : ""]]));
+
 async function clientIp(): Promise<string> {
   const h = await headers();
-  const forwarded = h.get("x-forwarded-for")?.split(",").map((x) => x.trim()).filter(Boolean);
-  return forwarded?.at(-1) ?? h.get("x-real-ip")?.trim() ?? "unbekannt";
+  const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? "1");
+  return clientIpFrom(h.get("x-forwarded-for") ?? h.get("x-real-ip"), Number.isInteger(hops) && hops > 0 ? hops : 1);
 }
 
 export async function registerAction(_prev: RegisterState, formData: FormData): Promise<RegisterState> {
   if (!registrationOpen()) return { error: "Die Registrierung ist noch nicht geöffnet." };
   // Köder-Feld für einfache Bots: Menschen sehen es nicht. Antwort wie bei Erfolg, damit Bots nichts lernen.
-  if (String(formData.get("website") ?? "") !== "") return { done: true };
-  if (formData.get("terms") !== "on") return { error: "Bitte stimme den Nutzungsbedingungen und der Datenschutzerklärung zu.", field: "terms" };
+  if (String(formData.get("hp_kontakt") ?? "") !== "") return { done: true };
+  if (formData.get("terms") !== "on") return { error: "Bitte stimme den Nutzungsbedingungen und der Datenschutzerklärung zu.", field: "terms", values: keep(formData) };
   const parsed = parseRegistration(Object.fromEntries(formData), isValidAddress);
-  if (!parsed.ok) return { error: parsed.problem.message, field: parsed.problem.field };
+  if (!parsed.ok) return { error: parsed.problem.message, field: parsed.problem.field, values: keep(formData) };
   const baseUrl = registrationBaseUrl();
   if (!baseUrl) return { error: "Die Registrierung ist gerade nicht möglich. Bitte versuche es später noch einmal." };
   const secret = process.env.SESSION_SECRET;
@@ -38,8 +40,8 @@ export async function registerAction(_prev: RegisterState, formData: FormData): 
   }
   if (!r.ok) {
     return r.reason === "limited"
-      ? { error: "Zu viele Versuche. Bitte versuche es in einer Stunde noch einmal." }
-      : { error: "Die E-Mail konnte nicht gesendet werden. Bitte prüfe die Adresse und versuche es später noch einmal." };
+      ? { error: "Zu viele Versuche. Bitte versuche es in einer Stunde noch einmal.", values: keep(formData) }
+      : { error: "Die Registrierung ist gerade nicht möglich. Bitte versuche es später noch einmal.", values: keep(formData) };
   }
   return showLinkOnPage() ? { done: true, link: r.link } : { done: true };
 }

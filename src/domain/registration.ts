@@ -10,7 +10,8 @@ export const CONFIRM_HOURS = 24;
 /** Begrenzung je Stunde. Zählt jede angenommene Registrierungsanfrage, nicht erst die bestätigte. */
 export const REGISTRATION_LIMITS = { windowMinutes: 60, perIp: 5, perEmail: 3, global: 100 };
 
-const CONTROL = /[\u0000-\u001f\u007f\u2028\u2029]/;
+// Auch unsichtbare Zeichen und Textrichtungs-Umschalter: Sie könnten dem Empfänger einen irreführenden Schulnamen vortäuschen.
+const CONTROL = /[\u0000-\u001f\u007f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 // Zeichen, die in Namen nichts zu suchen haben, aber in Mails, Adressen oder HTML Ärger machen könnten.
 const MARKUP = /[<>]/;
 
@@ -89,4 +90,30 @@ export function confirmationMail(link: string): { subject: string; text: string 
       "Kurswerk",
     ].join("\n"),
   };
+}
+
+
+/**
+ * Schlüssel für die Begrenzung pro Postfach: Plus-Zusätze und bei Gmail die Punkte zählen nicht als andere Adresse,
+ * sonst ließe sich ein Postfach über viele Varianten mit Mails fluten.
+ */
+export function mailboxKey(email: string): string {
+  const [local = "", domain = ""] = email.trim().toLowerCase().split("@");
+  const gmail = domain === "gmail.com" || domain === "googlemail.com";
+  const base = (local.split("+")[0] ?? "").replace(gmail ? /\./g : /$^/, "");
+  return `${base}@${gmail ? "gmail.com" : domain}`;
+}
+
+/**
+ * Adresse des Aufrufers aus x-forwarded-for. `hops` ist die Zahl der vertrauenswürdigen Vermittler (Standard 1):
+ * Gezählt wird von rechts, weil nur diese Einträge von uns kontrollierte Server angehängt haben.
+ * IPv6 wird auf das /64-Präfix gekürzt, sonst wechselt jeder Nutzer kostenlos die Adresse.
+ */
+export function clientIpFrom(forwardedFor: string | null, hops = 1): string {
+  const parts = (forwardedFor ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const ip = parts[parts.length - Math.max(1, hops)] ?? parts[0];
+  if (!ip) return "unbekannt";
+  if (!ip.includes(":")) return ip;
+  const groups = ip.split("::")[0]!.split(":").slice(0, 4);
+  return `v6:${groups.join(":")}`;
 }
