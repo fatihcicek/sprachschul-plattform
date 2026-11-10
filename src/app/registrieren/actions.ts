@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { clientIpFrom, parseRegistration } from "@/domain/registration";
 import { createMailer, isValidAddress } from "@/server/mailer";
-import { confirmRegistration, requestRegistration } from "@/server/registration";
+import { confirmRegistration, requestRegistration, sendPasswordLinkMail } from "@/server/registration";
 import { registrationBaseUrl, registrationOpen, showLinkOnPage } from "@/server/registration-config";
 
 export type RegisterState = { error?: string; field?: string; done?: true; link?: string; values?: Record<string, string> } | undefined;
@@ -57,5 +57,7 @@ export async function confirmRegistrationAction(token: string): Promise<{ error:
     return { error: "Das hat leider nicht geklappt. Bitte versuche es gleich noch einmal." };
   }
   if (!r.ok) return { error: "Dieser Link ist ungültig oder abgelaufen. Bitte registriere dich noch einmal." };
+  // Zusätzlich per Mail, damit nichts verloren geht, wenn die Person den Tab schließt. Scheitert der Versand, geht es trotzdem weiter.
+  await sendPasswordLinkMail(createMailer(), registrationBaseUrl(), r);
   redirect(`/einladung/${r.invitationToken}`);
 }
