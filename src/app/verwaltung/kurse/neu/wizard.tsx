@@ -75,7 +75,8 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
     let total = Object.keys(nextPicked).length + keptNew.length;
     for (const p of people) {
       const known = learnerByEmail.get(p.email);
-      if (!known && !teacherEmails.has(p.email) && !already.has(p.email) && total >= MAX_IMPORT_ROWS) {
+      const addsOne = known ? !(known.membershipId in nextPicked) : !teacherEmails.has(p.email) && !already.has(p.email);
+      if (addsOne && total >= MAX_IMPORT_ROWS) {
         notes.push({ line: p.line, text: `Zeile ${p.line}: höchstens ${MAX_IMPORT_ROWS} Teilnehmende je Kurs, Rest nicht übernommen` });
         break;
       }

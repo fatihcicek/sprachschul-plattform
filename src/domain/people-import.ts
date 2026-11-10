@@ -33,8 +33,11 @@ export function decodeTableFile(bytes: Uint8Array): string {
   }
 }
 
+let unclosedFrom = 0;
+
 /** Zerlegt den ganzen Text in Zeilen und Zellen; Anführungszeichen dürfen Trennzeichen und Zeilenumbrüche enthalten. */
 function records(text: string, d: string): { line: number; cells: string[] }[] {
+  unclosedFrom = 0;
   const out: { line: number; cells: string[] }[] = [];
   let cells: string[] = [];
   let cur = "";
@@ -52,7 +55,7 @@ function records(text: string, d: string): { line: number; cells: string[] }[] {
         if (c === "\n") line++;
         if (c !== "\r") cur += c === "\n" ? " " : c;
       }
-    } else if (c === '"') quoted = true;
+    } else if (c === '"' && cur.trim() === "") quoted = true; // nur am Zellanfang öffnet ein Anführungszeichen
     else if (c === d) {
       cells.push(cur.trim());
       cur = "";
@@ -68,6 +71,7 @@ function records(text: string, d: string): { line: number; cells: string[] }[] {
   }
   cells.push(cur.trim());
   out.push({ line: start, cells });
+  if (quoted) unclosedFrom = start;
   return out.filter((r) => r.cells.some((c) => c !== ""));
 }
 
@@ -93,6 +97,8 @@ export function parsePeopleTable(input: string): ImportResult {
   d ??= detectDelimiter(firstLine);
 
   const rows = records(text, d).map((r) => ({ ...r, line: r.line + offset }));
+  if (unclosedFrom)
+    return { people: [], problems: [{ line: unclosedFrom + offset, message: "Anführungszeichen nicht geschlossen; bitte die Zeile prüfen" }], hasBamfColumn: false };
   const head = rows[0]!.cells.map(norm);
   const find = (names: string[]) => head.findIndex((h) => names.includes(h));
   const fn = find(HEADERS.firstName);

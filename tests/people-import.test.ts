@@ -63,4 +63,11 @@ describe("Teilnehmendenliste aus einer Tabelle", () => {
     expect(r.problems).toEqual([]);
     expect(r.people.map((p) => [p.firstName, p.line])).toEqual([["Anna Maria", 3], ["Ben", 5]]);
   });
+
+  it("verliert bei einem einzelnen Anführungszeichen keine Zeilen", () => {
+    const r = parsePeopleTable('Vorname;Nachname;E-Mail\nA"x;B;a@b.de\nC;D;c@d.de\nE;F;e@f.de\n');
+    expect(r.people.map((p) => p.firstName)).toEqual(['A"x', "C", "E"]);
+    const broken = parsePeopleTable('Vorname;Nachname;E-Mail\n"Anna;B;a@b.de\nC;D;c@d.de\n');
+    expect(broken.problems[0]!.message).toMatch(/Anführungszeichen nicht geschlossen/);
+  });
 });
