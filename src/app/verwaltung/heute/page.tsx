@@ -55,13 +55,14 @@ export default async function Heute() {
       {openAttendance.length > 0 && (
         <div className="card">
           <strong>Anwesenheit noch nicht bestätigt</strong>
+          <div className="muted">Die Bestätigung erfolgt durch die Lehrkraft.</div>
           {openAttendance.map((o) => (
             <div key={o.sessionId} className="person">
               <div className="grow">
                 {o.courseName}
                 <div className="muted">{fmtShort.format(o.startsAt)}, {fmtTime.format(o.startsAt)}–{fmtTime.format(o.endsAt)} Uhr</div>
               </div>
-              <span className="badge SUBMITTED">{o.unconfirmed} offen</span>
+              <span className="badge open">{o.unconfirmed} offen</span>
             </div>
           ))}
         </div>

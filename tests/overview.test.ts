@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, type Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -101,10 +102,10 @@ describe("Regeln", () => {
     expect(phaseOf(s1, at("2026-11-10T20:15:00Z"))).toBe("OVER");
   });
   it("Anwesenheit offen, bis jede Person bestätigt ist", () => {
-    expect(attendanceIsOpen({ enrolled: 3, confirmed: 3, proposed: 0 })).toBe(false);
-    expect(attendanceIsOpen({ enrolled: 3, confirmed: 2, proposed: 1 })).toBe(true);
-    expect(attendanceIsOpen({ enrolled: 3, confirmed: 0, proposed: 0 })).toBe(true);
-    expect(attendanceIsOpen({ enrolled: 0, confirmed: 0, proposed: 0 })).toBe(false);
+    expect(attendanceIsOpen({ enrolled: 3, confirmed: 3 })).toBe(false);
+    expect(attendanceIsOpen({ enrolled: 3, confirmed: 2 })).toBe(true);
+    expect(attendanceIsOpen({ enrolled: 3, confirmed: 0 })).toBe(true);
+    expect(attendanceIsOpen({ enrolled: 0, confirmed: 0 })).toBe(false);
   });
 });
 
@@ -140,12 +141,38 @@ describe("Heute", () => {
     await expect(run(a, (tx) => loadToday(tx, a.learner, NOW))).rejects.toBeInstanceOf(NotAllowedError);
   });
 
+  it("lässt Entwürfe, archivierte Kurse, abgeschlossene Termine und inaktive Personen außen vor", async () => {
+    const c = await school("gamma");
+    await run(c, async (tx) => {
+      const [course] = await tx.select().from(s.courses);
+      await tx.update(s.lessonSessions).set({ status: "CLOSED" }).where(eq(s.lessonSessions.id, c.sessions.lastWeekOpen!));
+      const before = await loadToday(tx, c.admin, NOW);
+      expect(before.openAttendance.map((o) => o.sessionId)).not.toContain(c.sessions.lastWeekOpen);
+      await tx.update(s.memberships).set({ active: false }).where(eq(s.memberships.id, c.learner));
+      const noLearners = await loadToday(tx, c.admin, NOW);
+      expect(noLearners.lessons[0]!.learners).toBe(0);
+      expect(noLearners.openAttendance).toEqual([]);
+      await tx.update(s.courses).set({ status: "ARCHIVED" }).where(eq(s.courses.id, course!.id));
+      const archived = await loadToday(tx, c.admin, NOW);
+      expect(archived.lessons).toEqual([]);
+      await tx.update(s.courses).set({ status: "DRAFT" }).where(eq(s.courses.id, course!.id));
+      expect((await loadToday(tx, c.admin, NOW)).missingRegister).toEqual([]);
+    });
+  });
+
+  it("zeigt einen laufenden Termin als „läuft“ und zählt keine negativen offenen Anwesenheiten", async () => {
+    const running = new Date("2026-11-10T18:00:00Z");
+    const t = await run(a, (tx) => loadToday(tx, a.admin, running));
+    expect(t.lessons.find((l) => l.sessionId === a.sessions.evening)!.phase).toBe("RUNNING");
+    expect(t.openAttendance.every((o) => o.unconfirmed >= 0)).toBe(true);
+  });
+
   it("Schule A sieht nie Termine von Schule B", async () => {
     const t = await run(a, (tx) => loadToday(tx, a.admin, NOW));
     const all = [...t.lessons.map((l) => l.sessionId), ...t.openAttendance.map((o) => o.sessionId), ...t.missingRegister.map((o) => o.sessionId)];
     for (const id of Object.values(b.sessions)) expect(all).not.toContain(id);
     expect(t.lessons.every((l) => l.courseName === "Kurs alpha")).toBe(true);
     // Mit dem Konto von B in der Sitzung von A kommt nichts durch.
-    await expect(run(a, (tx) => loadToday(tx, b.admin, NOW))).rejects.toThrow();
+    await expect(run(a, (tx) => loadToday(tx, b.admin, NOW))).rejects.toThrow("Unbekanntes Konto");
   });
 });

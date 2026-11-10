@@ -13,12 +13,12 @@ export function phaseOf(s: TodaySession, now: Date): SessionPhase {
 /** Wie weit zurück offene Punkte gezeigt werden. Ältere Termine gehören in die Auswertung, nicht auf die Startseite. */
 export const LOOKBACK_DAYS = 60;
 
-export type SessionCounts = { enrolled: number; confirmed: number; proposed: number };
+export type SessionCounts = { enrolled: number; confirmed: number };
 
 /**
  * Anwesenheit eines vergangenen Termins gilt als offen, solange nicht jede
- * eingeschriebene Person bestätigt ist. Ohne jeden Vorschlag (z. B. kein
- * Einwahlprotokoll angekommen) ist sie ebenfalls offen.
+ * eingeschriebene Person bestätigt ist (auch wenn noch gar kein Vorschlag
+ * existiert, z. B. weil das Einwahlprotokoll fehlt).
  */
 export function attendanceIsOpen(c: SessionCounts): boolean {
   if (c.enrolled === 0) return false;
