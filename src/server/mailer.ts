@@ -5,6 +5,7 @@
 // Es gibt bewusst keinen stillen Ausweg: Ist in Produktion nichts eingerichtet, schlägt das Senden
 // mit einer klaren Meldung fehl. Aufrufer dürfen dann nicht behaupten, eine Mail sei unterwegs.
 
+import "server-only";
 import { mkdir, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
@@ -18,18 +19,19 @@ export interface Mailer {
 
 export class MailError extends Error {}
 
-const ADDRESS = /^[^\s@<>(),;:"\\]+@[^\s@<>(),;:"\\]+\.[^\s@<>(),;:"\\]{2,}$/;
+const ADDRESS = /^[^\s@<>(),;:"\\[\]%]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}$/u;
 const MAX_SUBJECT = 200;
 const MAX_TEXT = 20_000;
 
 /** Prüft eine Mail, bevor sie irgendwohin geht. Verhindert vor allem Kopfzeilen-Einschleusung per Zeilenumbruch. */
 export function validateMail(mail: Mail): Mail {
-  const to = (mail.to ?? "").trim();
+  if (!mail || typeof mail.to !== "string" || typeof mail.subject !== "string" || typeof mail.text !== "string") throw new MailError("Ungültige Mail.");
+  const to = mail.to.trim();
   if (to.length > 254 || !ADDRESS.test(to)) throw new MailError("Ungültige Empfängeradresse.");
-  if (/[\r\n]/.test(mail.subject ?? "")) throw new MailError("Der Betreff darf keinen Zeilenumbruch enthalten.");
-  const subject = (mail.subject ?? "").trim();
+  if (/[\r\n]/.test(mail.subject)) throw new MailError("Der Betreff darf keinen Zeilenumbruch enthalten.");
+  const subject = mail.subject.trim();
   if (!subject || subject.length > MAX_SUBJECT) throw new MailError("Der Betreff fehlt oder ist zu lang.");
-  const text = mail.text ?? "";
+  const text = mail.text;
   if (!text.trim() || text.length > MAX_TEXT) throw new MailError("Der Text fehlt oder ist zu lang.");
   return { to, subject, text };
 }
@@ -63,15 +65,21 @@ export function smtpMailer(config: SmtpConfig, transporter?: Transporter): Maile
       requireTLS: config.port !== 465,
       auth: { user: config.user, pass: config.pass },
       connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
       socketTimeout: 15_000,
+      // Nie Dateien oder Adressen aus dem Mailinhalt nachladen.
+      disableFileAccess: true,
+      disableUrlAccess: true,
     });
   return {
     async send(mail) {
       const m = validateMail(mail);
       try {
         await t.sendMail({ from: config.from, to: m.to, subject: m.subject, text: m.text });
-      } catch {
-        // Keine Details nach außen: Fehlermeldungen von Mailservern können Adressen und Zugangsdaten verraten.
+      } catch (e) {
+        // Nur Fehlercodes ins Protokoll, nie Meldung, Adresse oder Passwort. Nach außen gar keine Details.
+        const err = e as { code?: unknown; responseCode?: unknown };
+        console.error("E-Mail-Versand fehlgeschlagen", { code: typeof err.code === "string" ? err.code : undefined, responseCode: typeof err.responseCode === "number" ? err.responseCode : undefined });
         throw new MailError("Die E-Mail konnte nicht gesendet werden.");
       }
     },
@@ -82,9 +90,13 @@ export function fileMailer(dir: string): Mailer {
   return {
     async send(mail) {
       const m = validateMail(mail);
-      await mkdir(dir, { recursive: true });
-      const name = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}.txt`;
-      await writeFile(path.join(dir, name), `An: ${m.to}\nBetreff: ${m.subject}\n\n${m.text}\n`, { mode: 0o600 });
+      try {
+        await mkdir(dir, { recursive: true, mode: 0o700 });
+        const name = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}.txt`;
+        await writeFile(path.join(dir, name), `An: ${m.to}\nBetreff: ${m.subject}\n\n${m.text}\n`, { mode: 0o600 });
+      } catch {
+        throw new MailError("Die E-Mail konnte nicht gespeichert werden.");
+      }
     },
   };
 }
@@ -100,13 +112,13 @@ export function memoryMailer(): Mailer & { sent: Mail[] } {
 }
 
 /**
- * Wählt den Versandweg: SMTP, wenn eingerichtet. Sonst Datei, aber nur außerhalb der Produktion
- * oder wenn ausdrücklich MAIL_TRANSPORT=file gesetzt ist (Testumgebung mit erfundenen Daten).
+ * Wählt den Versandweg: SMTP, wenn eingerichtet. Sonst Datei, aber nur bei NODE_ENV development oder test
+ * oder wenn ausdrücklich MAIL_TRANSPORT=file gesetzt ist (Testumgebung mit erfundenen Daten). Alles andere schlägt fehl.
  */
 export function createMailer(env: Record<string, string | undefined> = process.env): Mailer {
   const smtp = smtpConfigFromEnv(env);
   if (smtp) return smtpMailer(smtp);
-  if (env.MAIL_TRANSPORT === "file" || env.NODE_ENV !== "production") return fileMailer(env.MAIL_OUTBOX ?? path.join(process.cwd(), ".mail-outbox"));
+  if (env.MAIL_TRANSPORT === "file" || env.NODE_ENV === "development" || env.NODE_ENV === "test") return fileMailer(env.MAIL_OUTBOX ?? path.join(process.cwd(), ".mail-outbox"));
   return {
     async send() {
       throw new MailError("E-Mail-Versand ist nicht eingerichtet.");

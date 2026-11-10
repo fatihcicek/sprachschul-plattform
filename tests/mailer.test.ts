@@ -1,6 +1,7 @@
 import { mkdtemp, readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import nodemailer from "nodemailer";
 import { describe, expect, it, vi } from "vitest";
 import { createMailer, fileMailer, MailError, memoryMailer, smtpConfigFromEnv, smtpMailer, validateMail } from "@/server/mailer";
 
@@ -18,6 +19,12 @@ describe("validateMail", () => {
   it("verhindert Einschleusen von Kopfzeilen über Zeilenumbrüche", () => {
     expect(() => validateMail({ ...ok, subject: "Hallo\r\nBcc: fremd@c.de" })).toThrow(/Zeilenumbruch/);
     expect(() => validateMail({ ...ok, to: "a@c.de\nBcc: fremd@c.de" })).toThrow(MailError);
+  });
+  it("lehnt Nicht-Texte und seltsame Adressformen ab", () => {
+    const bad = [{ ...ok, text: { path: "/etc/passwd" } }, { ...ok, to: ["a@c.de"] }, { ...ok, subject: 5 }, null];
+    for (const m of bad) expect(() => validateMail(m as never)).toThrow(MailError);
+    for (const to of ["a@[127.0.0.1]", "a@x..de", "a%b@c.de", "a@-c.de", "a@c-.de"]) expect(() => validateMail({ ...ok, to })).toThrow(MailError);
+    expect(validateMail({ ...ok, to: "jörg.müller@bücher.de" }).to).toBe("jörg.müller@bücher.de");
   });
   it("verlangt Betreff und Text in vernünftiger Länge", () => {
     expect(() => validateMail({ ...ok, subject: "  " })).toThrow(MailError);
@@ -61,9 +68,16 @@ describe("smtpMailer", () => {
     await expect(smtpMailer(cfg, { sendMail }).send({ ...ok, subject: "a\nb" })).rejects.toBeInstanceOf(MailError);
     expect(sendMail).not.toHaveBeenCalled();
   });
-  it("gibt Serverfehler nicht nach außen", async () => {
-    const sendMail = vi.fn().mockRejectedValue(new Error("535 Auth failed for user u password p at 10.0.0.1"));
-    await expect(smtpMailer(cfg, { sendMail }).send(ok)).rejects.toThrow("Die E-Mail konnte nicht gesendet werden.");
+  it("gibt Serverfehler nicht nach außen und protokolliert nur Codes", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const sendMail = vi.fn().mockRejectedValue(Object.assign(new Error("535 Auth failed for user u password p at 10.0.0.1"), { code: "EAUTH", responseCode: 535 }));
+    const err = await smtpMailer(cfg, { sendMail }).send(ok).catch((e) => e);
+    expect(err).toBeInstanceOf(MailError);
+    expect(err.message).toBe("Die E-Mail konnte nicht gesendet werden.");
+    expect((err as { cause?: unknown }).cause).toBeUndefined();
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/password|10\.0\.0\.1|leitung@/);
+    expect(log).toHaveBeenCalledWith("E-Mail-Versand fehlgeschlagen", { code: "EAUTH", responseCode: 535 });
+    log.mockRestore();
   });
 });
 
@@ -86,6 +100,16 @@ describe("fileMailer und memoryMailer", () => {
 });
 
 describe("createMailer", () => {
+  it("setzt TLS und sperrt Dateizugriffe im Transport", async () => {
+    const spy = vi.spyOn(nodemailer, "createTransport").mockReturnValue({ sendMail: vi.fn() } as never);
+    smtpMailer({ host: "h", port: 465, user: "u", pass: "p", from: "a@b.de" });
+    smtpMailer({ host: "h", port: 587, user: "u", pass: "p", from: "a@b.de" });
+    const [a, b] = spy.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(a).toMatchObject({ secure: true, requireTLS: false, disableFileAccess: true, disableUrlAccess: true });
+    expect(b).toMatchObject({ secure: false, requireTLS: true, disableFileAccess: true, disableUrlAccess: true });
+    expect(JSON.stringify([a, b])).not.toMatch(/rejectUnauthorized|ignoreTLS/);
+    spy.mockRestore();
+  });
   it("nimmt SMTP, wenn eingerichtet", async () => {
     const env = { SMTP_HOST: "127.0.0.1", SMTP_PORT: "1", SMTP_USER: "u", SMTP_PASS: "p", MAIL_FROM: "a@b.de" };
     // Verbindung scheitert (Port 1), aber der Fehler ist der geglättete Versandfehler, nicht ein Dateiweg.
@@ -99,7 +123,11 @@ describe("createMailer", () => {
     await createMailer({ NODE_ENV: "production", MAIL_TRANSPORT: "file", MAIL_OUTBOX: dir }).send(ok);
     expect(await readdir(dir)).toHaveLength(1);
   });
-  it("nutzt außerhalb der Produktion den Dateiweg", async () => {
+  it("fällt bei unbekanntem NODE_ENV nicht still auf die Datei zurück", async () => {
+    await expect(createMailer({ NODE_ENV: "staging" }).send(ok)).rejects.toThrow("nicht eingerichtet");
+    await expect(createMailer({}).send(ok)).rejects.toThrow("nicht eingerichtet");
+  });
+  it("nutzt in development den Dateiweg", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mail-"));
     await createMailer({ NODE_ENV: "development", MAIL_OUTBOX: dir }).send(ok);
     expect(await readdir(dir)).toHaveLength(1);

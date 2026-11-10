@@ -4,7 +4,7 @@ const nextConfig = {
   output: "standalone",
   // Die eingebettete Datenbank bringt WebAssembly-Dateien mit; nicht bündeln.
   images: { unoptimized: true },
-  serverExternalPackages: ["@electric-sql/pglite"],
+  serverExternalPackages: ["@electric-sql/pglite", "nodemailer"],
   async headers() {
     return [
       {
