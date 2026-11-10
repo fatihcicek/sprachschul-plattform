@@ -23,6 +23,9 @@ const ADDRESS = /^[^\s@<>(),;:"\\[\]%]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p
 const MAX_SUBJECT = 200;
 const MAX_TEXT = 20_000;
 
+/** Ist das eine brauchbare einzelne E-Mail-Adresse? Gleiche Regel wie beim Versand. */
+export const isValidAddress = (address: string): boolean => address.length <= 254 && ADDRESS.test(address);
+
 /** Prüft eine Mail, bevor sie irgendwohin geht. Verhindert vor allem Kopfzeilen-Einschleusung per Zeilenumbruch. */
 export function validateMail(mail: Mail): Mail {
   if (!mail || typeof mail.to !== "string" || typeof mail.subject !== "string" || typeof mail.text !== "string") throw new MailError("Ungültige Mail.");

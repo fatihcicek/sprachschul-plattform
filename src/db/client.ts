@@ -50,3 +50,23 @@ export function withSlugLookup<T>(db: Db, slug: string, fn: (tx: Tx) => Promise<
     return fn(tx);
   });
 }
+
+/**
+ * Zugriff auf Registrierungsdaten, die noch keiner Schule gehören. Die Datenbank zeigt nur Zeilen,
+ * für die hier das Geheimnis angegeben wird: den Hash des Bestätigungslinks (tokenHash) bzw. die
+ * Zählschlüssel (keys). organizationId wird nur beim Anlegen einer neuen Schule gesetzt.
+ */
+export function withRegistrationAccess<T>(
+  db: Db,
+  access: { tokenHash?: string; keys?: string[]; organizationId?: string; purgeExpired?: boolean },
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await restrict(db, tx);
+    if (access.tokenHash) await tx.execute(sql`select set_config('app.registration_token_hash', ${access.tokenHash}, true)`);
+    if (access.keys?.length) await tx.execute(sql`select set_config('app.registration_keys', ${access.keys.join(",")}, true)`);
+    if (access.organizationId) await tx.execute(sql`select set_config('app.organization_id', ${access.organizationId}, true)`);
+    if (access.purgeExpired) await tx.execute(sql`select set_config('app.registration_purge', '1', true)`);
+    return fn(tx);
+  });
+}

@@ -35,6 +35,9 @@ export const reviewState = pgEnum("review_state", ["PROPOSED", "CONFIRMED"]);
 // RETURNED: Rückmeldung liegt vor; die Person kann überarbeiten und erneut abgeben.
 export const submissionStatus = pgEnum("submission_status", ["DRAFT", "SUBMITTED", "RETURNED"]);
 
+// TRIAL: Testzeit läuft bis trial_ends_at, danach nur noch lesen. ACTIVE: freigeschaltet. SUSPENDED: gesperrt.
+export const organizationStatus = pgEnum("organization_status", ["TRIAL", "ACTIVE", "SUSPENDED"]);
+
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -43,8 +46,41 @@ export const organizations = pgTable("organizations", {
   id: id(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  // Von Hand angelegte Schulen sind sofort ACTIVE; selbst registrierte starten als TRIAL.
+  status: organizationStatus("status").notNull().default("ACTIVE"),
+  trialEndsAt: ts("trial_ends_at"),
+  // Nachweis der Zustimmung zu den Nutzungsbedingungen bei der Registrierung.
+  termsAcceptedAt: ts("terms_accepted_at"),
+  termsVersion: text("terms_version"),
   createdAt: createdAt(),
 });
+
+// Offene Registrierungen: gehören noch keiner Schule (es gibt sie ja erst nach der Bestätigung).
+// Zugriff nur über den Hash des Bestätigungslinks, siehe drizzle/0012_registrierung_sicherheit.sql.
+export const registrations = pgTable("registrations", {
+  id: id(),
+  tokenHash: text("token_hash").notNull().unique(),
+  schoolName: text("school_name").notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  termsVersion: text("terms_version").notNull(),
+  termsAcceptedAt: ts("terms_accepted_at").notNull(),
+  expiresAt: ts("expires_at").notNull(),
+  usedAt: ts("used_at"),
+  createdAt: createdAt(),
+});
+
+// Zählung für die Begrenzung gegen Missbrauch der Registrierung. Schlüssel sind Hashes (HMAC), keine Klartext-IPs oder -Adressen.
+export const registrationAttempts = pgTable(
+  "registration_attempts",
+  {
+    id: id(),
+    keyHash: text("key_hash").notNull(),
+    attemptedAt: ts("attempted_at").notNull().defaultNow(),
+  },
+  (t) => [index().on(t.keyHash, t.attemptedAt)],
+);
 
 const organizationId = () =>
   uuid("organization_id")

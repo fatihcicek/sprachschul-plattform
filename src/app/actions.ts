@@ -48,7 +48,7 @@ export async function setPasswordAction(token: string, _prev: FormState, formDat
     throw e;
   }
   if (!r.ok) return { error: r.message };
-  redirect("/login?neu=1");
+  redirect(`/login?neu=1&schule=${encodeURIComponent(r.slug)}`);
 }
 
 /** Erzeugt einen Einladungslink für eine Person der Schule. Der Link wird einmal angezeigt. */
