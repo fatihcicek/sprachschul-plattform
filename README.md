@@ -57,6 +57,18 @@ npm run dev        # http://localhost:3000
 
 Ohne `DEMO_LOGIN=1` ist keine Anmeldung möglich. Die Demo-Anmeldung gehört nicht in einen Betrieb mit echten Daten.
 
+## Schulen freischalten (Betreiber)
+
+Selbst registrierte Schulen testen 7 Tage und sind danach schreibgeschützt. Freischalten, sperren oder verlängern:
+
+```
+npm run school:status -- <kurzname> ACTIVE          # freischalten
+npm run school:status -- <kurzname> SUSPENDED       # sperren
+npm run school:status -- <kurzname> TRIAL 7         # Testzeit auf 7 Tage ab jetzt setzen
+```
+
+Jede Änderung wird protokolliert. Auf der Testumgebung läuft die eingebettete Datenbank, die nur einen Prozess verträgt: App dafür kurz anhalten.
+
 ## Testinstallation auf Namecheap
 
 `https://schule.gold-code-academy.com` – nur erfundene Beispieldaten.

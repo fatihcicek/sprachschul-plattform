@@ -7,11 +7,13 @@ import { createAssignmentAction } from "@/app/actions";
 import { asSessionUser } from "@/server/context";
 import { listForTeacher, NotAllowedError } from "@/server/assignments";
 import { loadActor } from "@/server/actor";
+import { getCurrentAccess } from "@/server/current-access";
 import { STATUS_LABEL, formatDue } from "@/app/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function Lehrkraft() {
+  const readOnly = (await getCurrentAccess())?.access.mode === "READ_ONLY";
   const data = await asSessionUser(async (tx, me) => {
     const [p] = await tx.select({ f: users.firstName, l: users.lastName }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
     const actor = await loadActor(tx, me);
@@ -51,6 +53,7 @@ export default async function Lehrkraft() {
         </div>
       ))}
       <form action={createAssignmentAction} className="card">
+        <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0 }}>
         <strong>Neue Aufgabe stellen</strong>
         <label htmlFor="courseId">Kurs</label>
         <select id="courseId" name="courseId" required>{data.myCourses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -61,6 +64,8 @@ export default async function Lehrkraft() {
         <label htmlFor="dueAt">Frist (optional)</label>
         <input id="dueAt" name="dueAt" type="datetime-local" />
         <p><button type="submit">Aufgabe stellen</button></p>
+        {readOnly && <p className="muted">Nur lesen: Die Testzeit ist abgelaufen.</p>}
+        </fieldset>
       </form>
     </Shell>
   );

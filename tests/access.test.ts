@@ -30,18 +30,18 @@ const DAY = 24 * HOUR;
 describe("Zugriffsmodus (ohne Datenbank)", () => {
   const trial = { status: "TRIAL" as const, trialEndsAt: END };
   it("zählt die Resttage, am letzten Tag ist es 1", () => {
-    expect(organizationAccess(trial, at(-7 * DAY))).toEqual({ mode: "FULL", trialDaysLeft: 7 });
-    expect(organizationAccess(trial, at(-6 * DAY - HOUR))).toEqual({ mode: "FULL", trialDaysLeft: 7 });
-    expect(organizationAccess(trial, at(-6 * DAY))).toEqual({ mode: "FULL", trialDaysLeft: 6 });
-    expect(organizationAccess(trial, at(-HOUR))).toEqual({ mode: "FULL", trialDaysLeft: 1 });
+    expect(organizationAccess(trial, at(-7 * DAY))).toMatchObject({ mode: "FULL", trialDaysLeft: 7 });
+    expect(organizationAccess(trial, at(-6 * DAY - HOUR))).toMatchObject({ mode: "FULL", trialDaysLeft: 7 });
+    expect(organizationAccess(trial, at(-6 * DAY))).toMatchObject({ mode: "FULL", trialDaysLeft: 6 });
+    expect(organizationAccess(trial, at(-HOUR))).toMatchObject({ mode: "FULL", trialDaysLeft: 1 });
   });
   it("erlaubt Schreiben bis zur letzten Millisekunde, danach nur lesen", () => {
     expect(organizationAccess(trial, END).mode).toBe("FULL");
     expect(organizationAccess(trial, at(1)).mode).toBe("READ_ONLY");
-    expect(organizationAccess(trial, at(30 * DAY))).toEqual({ mode: "READ_ONLY", trialDaysLeft: 0 });
+    expect(organizationAccess(trial, at(30 * DAY))).toMatchObject({ mode: "READ_ONLY", trialDaysLeft: 0 });
   });
   it("lässt freigeschaltete Schulen voll arbeiten, auch lange nach dem alten Testende", () => {
-    expect(organizationAccess({ status: "ACTIVE", trialEndsAt: END }, at(400 * DAY))).toEqual({ mode: "FULL", trialDaysLeft: null });
+    expect(organizationAccess({ status: "ACTIVE", trialEndsAt: END }, at(400 * DAY))).toMatchObject({ mode: "FULL", trialDaysLeft: null });
     expect(organizationAccess({ status: "ACTIVE", trialEndsAt: null }, END).mode).toBe("FULL");
   });
   it("sperrt gesperrte Schulen ganz, auch innerhalb der Testzeit", () => {
@@ -51,9 +51,9 @@ describe("Zugriffsmodus (ohne Datenbank)", () => {
     expect(organizationAccess({ status: "TRIAL", trialEndsAt: null }, END).mode).toBe("READ_ONLY");
   });
   it("canWriteInOrganization ist nur bei FULL wahr", () => {
-    expect(canWriteInOrganization({ mode: "FULL", trialDaysLeft: null })).toBe(true);
-    expect(canWriteInOrganization({ mode: "READ_ONLY", trialDaysLeft: 0 })).toBe(false);
-    expect(canWriteInOrganization({ mode: "BLOCKED", trialDaysLeft: null })).toBe(false);
+    expect(canWriteInOrganization({ mode: "FULL", trialDaysLeft: null, trialEndsAt: null })).toBe(true);
+    expect(canWriteInOrganization({ mode: "READ_ONLY", trialDaysLeft: 0, trialEndsAt: null })).toBe(false);
+    expect(canWriteInOrganization({ mode: "BLOCKED", trialDaysLeft: null, trialEndsAt: null })).toBe(false);
   });
   it("erkennt den Datenbankfehler für Schreiben in nur-lesender Transaktion, auch verpackt", () => {
     expect(isReadOnlyViolation({ code: "25006" })).toBe(true);

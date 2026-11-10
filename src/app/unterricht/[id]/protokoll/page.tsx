@@ -17,7 +17,6 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
     try {
       const r = await loadRoom(tx, me, id, now);
       if (!r.can.export || now < r.session.startsAt) return null;
-      await recordExport(tx, me, id, { confirmed: r.learners.filter((l) => l.reviewState === "CONFIRMED").length, unconfirmed: r.learners.filter((l) => l.reviewState !== "CONFIRMED").length }); // jede Ausgabe wird festgehalten
       return r;
     } catch (e) {
       if (e instanceof NotAllowedError || e instanceof TeachingRuleError) return null;
@@ -25,6 +24,12 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
     }
   });
   if (!room) redirect(`/unterricht/${id}`);
+  // Jede Ausgabe wird festgehalten. Das ist ein Protokolleintrag, keine Änderung der Schuldaten: Er muss auch nach
+  // Ablauf der Testzeit möglich sein, denn gerade dann soll der Nachweis abrufbar bleiben.
+  await asSessionUser(
+    (tx, me) => recordExport(tx, me, id, { confirmed: room.learners.filter((l) => l.reviewState === "CONFIRMED").length, unconfirmed: room.learners.filter((l) => l.reviewState !== "CONFIRMED").length }),
+    { auditOnly: true },
+  );
   const unconfirmed = room.learners.some((l) => l.reviewState !== "CONFIRMED");
   return (
     <main className="shell wide protocol">

@@ -69,7 +69,13 @@ export type OrganizationStatus = "TRIAL" | "ACTIVE" | "SUSPENDED";
  * BLOCKED: gesperrt, niemand kommt hinein.
  */
 export type AccessMode = "FULL" | "READ_ONLY" | "BLOCKED";
-export type OrganizationAccess = { mode: AccessMode; /** Volle Resttage der Testzeit (letzter Tag = 1), sonst null. */ trialDaysLeft: number | null };
+export type OrganizationAccess = {
+  mode: AccessMode;
+  /** Volle Resttage der Testzeit (letzter Tag = 1), sonst null. */
+  trialDaysLeft: number | null;
+  /** Ende der Testzeit, solange die Schule im Teststatus ist. */
+  trialEndsAt: Date | null;
+};
 
 const DAY_MS = 86_400_000;
 
@@ -79,12 +85,12 @@ const DAY_MS = 86_400_000;
  * Ende (darf die Datenbank nicht zulassen), gilt vorsichtshalber schreibgeschützt.
  */
 export function organizationAccess(org: { status: OrganizationStatus; trialEndsAt: Date | null }, now: Date): OrganizationAccess {
-  if (org.status === "SUSPENDED") return { mode: "BLOCKED", trialDaysLeft: null };
-  if (org.status === "ACTIVE") return { mode: "FULL", trialDaysLeft: null };
-  if (!org.trialEndsAt) return { mode: "READ_ONLY", trialDaysLeft: 0 };
+  if (org.status === "SUSPENDED") return { mode: "BLOCKED", trialDaysLeft: null, trialEndsAt: null };
+  if (org.status === "ACTIVE") return { mode: "FULL", trialDaysLeft: null, trialEndsAt: null };
+  if (!org.trialEndsAt) return { mode: "READ_ONLY", trialDaysLeft: 0, trialEndsAt: null };
   const left = org.trialEndsAt.getTime() - now.getTime();
-  if (left < 0) return { mode: "READ_ONLY", trialDaysLeft: 0 };
-  return { mode: "FULL", trialDaysLeft: Math.max(1, Math.ceil(left / DAY_MS)) };
+  if (left < 0) return { mode: "READ_ONLY", trialDaysLeft: 0, trialEndsAt: org.trialEndsAt };
+  return { mode: "FULL", trialDaysLeft: Math.max(1, Math.ceil(left / DAY_MS)), trialEndsAt: org.trialEndsAt };
 }
 
 /** Darf in dieser Schule etwas geändert werden? */

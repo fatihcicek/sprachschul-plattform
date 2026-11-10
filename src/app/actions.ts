@@ -36,7 +36,7 @@ export async function passwordLogin(_prev: FormState, formData: FormData): Promi
         r.reason === "locked"
           ? "Zu viele Versuche. Bitte warte 15 Minuten und versuche es dann erneut."
           : r.reason === "suspended"
-            ? "Der Zugang dieser Schule ist gesperrt. Bitte wende dich an den Betreiber von Kurswerk."
+            ? "Der Zugang dieser Schule ist gesperrt. Bitte wende dich an die Leitung deiner Schule oder an den Betreiber von Kurswerk."
             : "Schule, E-Mail oder Passwort stimmen nicht.",
     };
   }

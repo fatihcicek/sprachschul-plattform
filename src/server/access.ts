@@ -17,7 +17,7 @@ export class ReadOnlyError extends Error {
 export async function loadAccess(tx: Tx, now: Date = new Date()): Promise<OrganizationAccess> {
   const [org] = await tx.select({ status: organizations.status, trialEndsAt: organizations.trialEndsAt }).from(organizations);
   // Eine Schule ohne lesbare Zeile gibt es nicht; im Zweifel gesperrt statt offen.
-  if (!org) return { mode: "BLOCKED", trialDaysLeft: null };
+  if (!org) return { mode: "BLOCKED", trialDaysLeft: null, trialEndsAt: null };
   return organizationAccess(org, now);
 }
 

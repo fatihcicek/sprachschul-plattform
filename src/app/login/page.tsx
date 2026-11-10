@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 
 const ROLE_LABEL = { ADMIN: "Leitung", STAFF: "Verwaltung", TEACHER: "Lehrkräfte", LEARNER: "Teilnehmende" } as const;
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ neu?: string; schule?: string }> }) {
-  const { neu, schule } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ neu?: string; schule?: string; gesperrt?: string }> }) {
+  const { neu, schule, gesperrt } = await searchParams;
   const demo = demoLoginEnabled();
   const fromLink = schule && /^[a-z0-9-]{1,80}$/.test(schule) ? schule : null;
   const defaultSchool = fromLink ?? process.env.DEFAULT_ORG_SLUG ?? (demo ? (process.env.DEMO_ORG_SLUG ?? "beispielschule") : "");
@@ -19,6 +19,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="shell" style={{ maxWidth: 480 }}>
       <h1 style={{ marginBottom: 4 }}>Kurswerk</h1>
       <p className="muted">Melde dich an.</p>
+      {gesperrt && <div className="err" role="alert">Der Zugang dieser Schule ist gesperrt. Bitte wende dich an die Leitung deiner Schule oder an den Betreiber von Kurswerk.</div>}
       {neu && <div className="okbox" role="status">Dein Passwort ist gesetzt. Du kannst dich jetzt anmelden.</div>}
       <LoginForm defaultSchool={defaultSchool} />
       {registrationOpen() && (

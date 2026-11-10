@@ -6,6 +6,7 @@ import { Shell } from "@/app/shell";
 import { feedbackAction } from "@/app/actions";
 import { asSessionUser } from "@/server/context";
 import { getForTeacher } from "@/server/assignments";
+import { getCurrentAccess } from "@/server/current-access";
 import { formatTime, STATUS_LABEL } from "@/app/format";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function Abgabe({ params }: { params: Promise<{ id: string 
     }
   });
   if (!data) notFound();
+  const readOnly = (await getCurrentAccess())?.access.mode === "READ_ONLY";
   const { assignment, submission, learner, versions } = data;
   return (
     <Shell name={data.name} home="/lehrkraft">
@@ -39,9 +41,12 @@ export default async function Abgabe({ params }: { params: Promise<{ id: string 
       ))}
       {submission.status === "SUBMITTED" && (
         <form action={feedbackAction.bind(null, submission.id)} className="card">
-          <label htmlFor="comment">Rückmeldung an {learner.firstName}</label>
-          <textarea id="comment" name="comment" required style={{ minHeight: 120 }} />
-          <p><button type="submit">Rückmeldung senden</button></p>
+          <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0 }}>
+            <label htmlFor="comment">Rückmeldung an {learner.firstName}</label>
+            <textarea id="comment" name="comment" required style={{ minHeight: 120 }} />
+            <p><button type="submit">Rückmeldung senden</button></p>
+            {readOnly && <p className="muted">Nur lesen: Die Testzeit ist abgelaufen.</p>}
+          </fieldset>
         </form>
       )}
     </Shell>
