@@ -12,6 +12,7 @@ import * as svc from "@/server/assignments";
 import * as courseSvc from "@/server/courses";
 import * as teach from "@/server/teaching";
 import { changeAttendanceStatus } from "@/server/attendance";
+import { ReadOnlyError } from "@/server/access";
 
 export async function login(formData: FormData) {
   await loginAs(String(formData.get("membershipId") ?? ""));
@@ -30,7 +31,14 @@ export async function passwordLogin(_prev: FormState, formData: FormData): Promi
     throw e;
   }
   if (!r.ok) {
-    return { error: r.reason === "locked" ? "Zu viele Versuche. Bitte warte 15 Minuten und versuche es dann erneut." : "Schule, E-Mail oder Passwort stimmen nicht." };
+    return {
+      error:
+        r.reason === "locked"
+          ? "Zu viele Versuche. Bitte warte 15 Minuten und versuche es dann erneut."
+          : r.reason === "suspended"
+            ? "Der Zugang dieser Schule ist gesperrt. Bitte wende dich an die Leitung deiner Schule oder an den Betreiber von Kurswerk."
+            : "Schule, E-Mail oder Passwort stimmen nicht.",
+    };
   }
   await setSession({ membershipId: r.membershipId, organizationId: r.organizationId, passwordVersion: r.passwordVersion });
   redirect("/");
@@ -67,6 +75,7 @@ export async function inviteAction(targetMembershipId: string): Promise<{ ok: tr
     return { ok: true, link: `${base}/einladung/${token}`, expiresAt: expiresAt.toISOString() };
   } catch (e) {
     if (e instanceof svc.NotAllowedError) return { ok: false, message: "Dafür fehlt dir die Berechtigung." };
+    if (e instanceof ReadOnlyError) return { ok: false, message: e.message };
     throw e;
   }
 }
@@ -83,7 +92,7 @@ async function guarded(fn: () => Promise<unknown>): Promise<Result> {
     await fn();
     return { ok: true };
   } catch (e) {
-    if (e instanceof svc.SubmissionRuleError || e instanceof svc.NotAllowedError) return { ok: false, message: e.message };
+    if (e instanceof svc.SubmissionRuleError || e instanceof svc.NotAllowedError || e instanceof ReadOnlyError) return { ok: false, message: e.message };
     throw e;
   }
 }
@@ -100,19 +109,28 @@ export async function submitAction(assignmentId: string, text: string): Promise<
 
 export async function createAssignmentAction(formData: FormData) {
   const dueRaw = String(formData.get("dueAt") ?? "");
-  await asSessionUser((tx, me) =>
-    svc.createAssignment(tx, me, {
-      courseId: String(formData.get("courseId")),
-      title: String(formData.get("title") ?? ""),
-      instructions: String(formData.get("instructions") ?? ""),
-      dueAt: dueRaw ? new Date(dueRaw) : null,
-    }),
-  );
+  try {
+    await asSessionUser((tx, me) =>
+      svc.createAssignment(tx, me, {
+        courseId: String(formData.get("courseId")),
+        title: String(formData.get("title") ?? ""),
+        instructions: String(formData.get("instructions") ?? ""),
+        dueAt: dueRaw ? new Date(dueRaw) : null,
+      }),
+    );
+  } catch (e) {
+    // Abgelaufene Testzeit: zurück auf die Seite, deren Hinweisleiste den Grund nennt.
+    if (!(e instanceof ReadOnlyError)) throw e;
+  }
   revalidatePath("/lehrkraft");
 }
 
 export async function feedbackAction(submissionId: string, formData: FormData) {
-  await asSessionUser((tx, me) => svc.giveFeedback(tx, me, submissionId, String(formData.get("comment") ?? "")));
+  try {
+    await asSessionUser((tx, me) => svc.giveFeedback(tx, me, submissionId, String(formData.get("comment") ?? "")));
+  } catch (e) {
+    if (!(e instanceof ReadOnlyError)) throw e;
+  }
   redirect("/lehrkraft");
 }
 
@@ -127,7 +145,7 @@ export async function createCourseAction(input: unknown): Promise<CreateCourseRe
     revalidatePath("/verwaltung");
     return { ok: true, courseId: r.courseId, sessions: r.sessions, learners: r.learners };
   } catch (e) {
-    if (e instanceof courseSvc.CourseInputError || e instanceof svc.NotAllowedError) return { ok: false, message: e.message };
+    if (e instanceof courseSvc.CourseInputError || e instanceof svc.NotAllowedError || e instanceof ReadOnlyError) return { ok: false, message: e.message };
     throw e;
   }
 }
@@ -151,7 +169,7 @@ async function room<T extends object = object>(sessionId: unknown, fn: (tx: Para
     return { ok: true, ...((extra ?? {}) as T) };
   } catch (e) {
     if (e instanceof teach.NotAllowedError) return { ok: false, message: "Dafür fehlt dir die Berechtigung." };
-    if (e instanceof teach.TeachingRuleError || e instanceof teach.AttendanceRuleError) return { ok: false, message: e.message };
+    if (e instanceof teach.TeachingRuleError || e instanceof teach.AttendanceRuleError || e instanceof ReadOnlyError) return { ok: false, message: e.message };
     throw e;
   }
 }

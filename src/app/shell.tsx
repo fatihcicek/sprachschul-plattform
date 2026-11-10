@@ -2,6 +2,7 @@ import { NavItems } from "@/app/nav-items";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { logout } from "@/app/actions";
+import { TrialBanner } from "@/app/trial-banner";
 
 export type NavLink = { href: string; label: string };
 
@@ -18,6 +19,7 @@ export function Shell({ name, home, nav = [], wide = false, children }: { name: 
           <button className="ghost" type="submit">Abmelden</button>
         </form>
       </div>
+      <TrialBanner />
       {children}
     </main>
   );
