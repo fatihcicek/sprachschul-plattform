@@ -1,17 +1,19 @@
-# Bei jedem Stand auf main: prüfen, Paket bauen und auf den Zweig "deploy" legen.
-# Der Server (Namecheap) holt sich diesen Zweig alle paar Minuten selbst ab.
+# Pull Requests: prüfen (Typprüfung, Tests, Paket bauen). Ohne grüne Prüfung kein Merge.
+# Nach dem Merge auf main: zusätzlich das Paket auf den Zweig "deploy" legen.
+# Der Server (Namecheap) holt sich diesen Zweig alle 5 Minuten selbst ab.
 name: Prüfen und ausliefern
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: deploy
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'deploy' }}
   cancel-in-progress: true
 
 jobs:
@@ -45,6 +47,7 @@ jobs:
       - run: npx vitest run
       - run: ./scripts/bundle.sh
       - name: Paket auf den Zweig deploy legen
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           cd dist
           git init -q -b deploy
