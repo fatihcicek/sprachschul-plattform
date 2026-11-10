@@ -5,6 +5,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Tx } from "@/db/client";
 import { auditEvents, courses, enrollments, lessonSessions, memberships, teachingAssignments, users } from "@/db/schema";
+import { loadBamfEnabled } from "@/server/features";
 import { checkPlan, expandPlan, type WeeklyPlan } from "@/domain/course-plan";
 import { can } from "@/domain/permissions";
 import { loadActor, NotAllowedError } from "@/server/actor";
@@ -117,6 +118,9 @@ export async function createCourse(tx: Tx, actorMembershipId: string, raw: unkno
   if (new Set(learnerIds).size !== learnerIds.length) throw new CourseInputError("Eine Person ist doppelt ausgewählt.");
   const errors = validateCourseInput(input);
   if (errors.length) throw new CourseInputError(errors.join(" "));
+  // Ohne BAMF-Funktionen gibt es keine Kursnummer und keine BAMF-Förderung. Der Server prüft das selbst; die Oberfläche blendet es nur aus.
+  if (!(await loadBamfEnabled(tx)) && (input.bamfCourseNumber?.trim() || input.learners.some((l) => l.bamfFunded) || input.newLearners.some((l) => l.bamfFunded)))
+    throw new CourseInputError("BAMF-Angaben sind für diese Schule nicht eingeschaltet. Du kannst sie in den Einstellungen aktivieren.");
 
   // Ausgewählte Personen müssen in dieser Schule die passende Rolle haben.
   // Die Zeilensicherheit lässt Personen anderer Schulen gar nicht erst durch.

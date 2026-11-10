@@ -13,6 +13,7 @@ import * as courseSvc from "@/server/courses";
 import * as teach from "@/server/teaching";
 import { changeAttendanceStatus } from "@/server/attendance";
 import { ReadOnlyError } from "@/server/access";
+import { setBamfEnabled } from "@/server/features";
 
 export async function login(formData: FormData) {
   await loginAs(String(formData.get("membershipId") ?? ""));
@@ -190,4 +191,19 @@ export async function saveRegisterAction(sessionId: string, content: string, bas
 }
 export async function closeSessionAction(sessionId: string): Promise<RoomResult> {
   return room(sessionId, async (tx, me) => { await teach.closeSession(tx, me, sessionId); });
+}
+
+// ---- Verwaltung: Einstellungen ----
+
+export async function setBamfAction(enabled: boolean): Promise<Result> {
+  try {
+    await asSessionUser((tx, me) => setBamfEnabled(tx, me, enabled === true));
+    revalidatePath("/verwaltung/einstellungen");
+    revalidatePath("/verwaltung");
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof svc.NotAllowedError) return { ok: false, message: "Dafür fehlt dir die Berechtigung." };
+    if (e instanceof ReadOnlyError) return { ok: false, message: e.message };
+    throw e;
+  }
 }

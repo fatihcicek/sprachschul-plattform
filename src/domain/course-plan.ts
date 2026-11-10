@@ -70,7 +70,7 @@ export function localTimeToDate(day: string, time: string, timeZone: string = SC
 }
 
 /** Prüft das Wochenmuster. Liefert Fehler (blockieren) und Hinweise (nur anzeigen). */
-export function checkPlan(plan: WeeklyPlan): { errors: string[]; warnings: string[] } {
+export function checkPlan(plan: WeeklyPlan, options: { bamf?: boolean } = { bamf: true }): { errors: string[]; warnings: string[] } {
   const errors: string[] = [];
   const warnings: string[] = [];
   if (!isCalendarDay(plan.startDate) || !isCalendarDay(plan.endDate)) errors.push("Bitte Beginn und Ende des Kurses angeben.");
@@ -89,7 +89,7 @@ export function checkPlan(plan: WeeklyPlan): { errors: string[]; warnings: strin
   if (dates.length === 0) errors.push("Im gewählten Zeitraum liegt kein Unterrichtstag.");
   if (dates.length > MAX_SESSIONS) errors.push(`Das wären ${dates.length} Termine; höchstens ${MAX_SESSIONS} sind möglich.`);
 
-  if (plan.mode === "VIRTUAL") {
+  if (plan.mode === "VIRTUAL" && options.bamf) {
     const violations = findVirtualUeViolations(dates.map((d, i) => ({ id: String(i), startsAt: d.startsAt, endsAt: d.endsAt, plannedUe: plan.ue, mode: "VIRTUAL" })));
     if (violations.length)
       warnings.push(

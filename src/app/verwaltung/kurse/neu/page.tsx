@@ -4,6 +4,7 @@ import { memberships, users } from "@/db/schema";
 import { ADMIN_NAV, Shell } from "@/app/shell";
 import { asSessionUser } from "@/server/context";
 import { listPeople } from "@/server/courses";
+import { loadBamfEnabled } from "@/server/features";
 import { NotAllowedError } from "@/server/actor";
 import { CourseWizard } from "./wizard";
 
@@ -13,7 +14,7 @@ export default async function KursAnlegen() {
   const data = await asSessionUser(async (tx, me) => {
     const [p] = await tx.select({ f: users.firstName, l: users.lastName }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
     try {
-      return { name: `${p!.f} ${p!.l}`, people: await listPeople(tx, me) };
+      return { name: `${p!.f} ${p!.l}`, people: await listPeople(tx, me), bamf: await loadBamfEnabled(tx) };
     } catch (e) {
       if (e instanceof NotAllowedError) return null;
       throw e;
@@ -23,7 +24,7 @@ export default async function KursAnlegen() {
   return (
     <Shell name={data.name} home="/verwaltung" nav={ADMIN_NAV} wide>
       <h1>Kurs anlegen</h1>
-      <CourseWizard teachers={data.people.teachers} learners={data.people.learners} />
+      <CourseWizard teachers={data.people.teachers} learners={data.people.learners} bamfEnabled={data.bamf} />
     </Shell>
   );
 }

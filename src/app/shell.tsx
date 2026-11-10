@@ -31,6 +31,7 @@ export const ADMIN_NAV: NavLink[] = [
   { href: "/verwaltung", label: "Kurse" },
   { href: "/verwaltung/personen", label: "Personen" },
   { href: "/lehrkraft", label: "Aufgaben" },
+  { href: "/verwaltung/einstellungen", label: "Einstellungen" },
 ];
 
 export const TEACHER_NAV: NavLink[] = [

@@ -38,6 +38,13 @@ export function RegisterForm() {
       </div>
       <label htmlFor="email">E-Mail-Adresse</label>
       <input id="email" name="email" defaultValue={v("email")} type="email" required maxLength={254} autoComplete="email" {...bad("email")} />
+      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 18, fontSize: 15 }}>
+        <input type="checkbox" name="bamf" defaultChecked={v("bamf") === "on"} style={{ marginTop: 4 }} />
+        <span>
+          Wir bieten BAMF-geförderte Kurse an (Integrations- oder Berufssprachkurse)
+          <span className="muted" style={{ display: "block" }}>Schaltet BAMF-Funktionen wie Kursnummer und Einwahlprotokoll ein. Das kannst du später in den Einstellungen ändern.</span>
+        </span>
+      </label>
       {/* Köder gegen Bots: für Menschen unsichtbar und nicht per Tab erreichbar. */}
       <div aria-hidden="true" style={{ position: "absolute", left: -9999, height: 0, overflow: "hidden" }}>
         <label htmlFor="hp_kontakt">Dieses Feld bitte leer lassen</label>

@@ -125,6 +125,7 @@ export async function confirmRegistration(db: Db, token: string, now: Date = new
             trialEndsAt: new Date(now.getTime() + TRIAL_DAYS * 86_400_000),
             termsAcceptedAt: row.termsAcceptedAt,
             termsVersion: row.termsVersion,
+            bamfEnabled: row.bamfEnabled,
             createdAt: now,
           }),
         );
