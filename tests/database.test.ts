@@ -80,7 +80,7 @@ afterAll(async () => {
 describe("Mandantentrennung in der Datenbank", () => {
   it("läuft ohne Superuser-Rechte, weil diese die Zeilensicherheit umgehen", async () => {
     const r = await db.execute(sql`select current_setting('is_superuser') as su`);
-    expect(r.rows[0]).toEqual({ su: "off" });
+    expect((r as unknown as { rows: unknown[] }).rows[0]).toEqual({ su: "off" });
   });
 
   it("zeigt ohne gesetzte Schule keine Schuldaten", async () => {
