@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { clearSession, loginAs, setSession } from "@/server/session";
 import { getDb } from "@/db";
 import { authenticate, inviteAsActor, redeemInvitation } from "@/server/auth";
+import { BusyError } from "@/domain/password";
 import { headers } from "next/headers";
 import { asSessionUser } from "@/server/context";
 import * as svc from "@/server/assignments";
@@ -19,16 +20,17 @@ export type FormState = { error?: string } | undefined;
 
 /** Anmeldung mit E-Mail und Passwort. Die Meldung verrät nie, ob Schule oder E-Mail existieren. */
 export async function passwordLogin(_prev: FormState, formData: FormData): Promise<FormState> {
-  const r = await authenticate(
-    await getDb(),
-    String(formData.get("school") ?? ""),
-    String(formData.get("email") ?? ""),
-    String(formData.get("password") ?? ""),
-  );
+  let r: Awaited<ReturnType<typeof authenticate>>;
+  try {
+    r = await authenticate(await getDb(), String(formData.get("school") ?? ""), String(formData.get("email") ?? ""), String(formData.get("password") ?? ""));
+  } catch (e) {
+    if (e instanceof BusyError) return { error: e.message };
+    throw e;
+  }
   if (!r.ok) {
     return { error: r.reason === "locked" ? "Zu viele Versuche. Bitte warte 15 Minuten und versuche es dann erneut." : "Schule, E-Mail oder Passwort stimmen nicht." };
   }
-  await setSession({ membershipId: r.membershipId, organizationId: r.organizationId });
+  await setSession({ membershipId: r.membershipId, organizationId: r.organizationId, passwordVersion: r.passwordVersion });
   redirect("/");
 }
 
@@ -36,20 +38,31 @@ export async function passwordLogin(_prev: FormState, formData: FormData): Promi
 export async function setPasswordAction(token: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const password = String(formData.get("password") ?? "");
   if (password !== String(formData.get("password2") ?? "")) return { error: "Die beiden Passwörter sind nicht gleich." };
-  const r = await redeemInvitation(await getDb(), token, password);
+  let r: Awaited<ReturnType<typeof redeemInvitation>>;
+  try {
+    r = await redeemInvitation(await getDb(), token, password);
+  } catch (e) {
+    if (e instanceof BusyError) return { error: e.message };
+    throw e;
+  }
   if (!r.ok) return { error: r.message };
   redirect("/login?neu=1");
 }
 
 /** Erzeugt einen Einladungslink für eine Person der Schule. Der Link wird einmal angezeigt. */
 export async function inviteAction(targetMembershipId: string): Promise<{ ok: true; link: string; expiresAt: string } | { ok: false; message: string }> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetMembershipId)) return { ok: false, message: "Unbekannte Person." };
   try {
     const { token, expiresAt } = await asSessionUser((tx, me) => inviteAsActor(tx, me, targetMembershipId));
     revalidatePath("/verwaltung/personen");
-    const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost";
-    const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-    return { ok: true, link: `${proto}://${host}/einladung/${token}`, expiresAt: expiresAt.toISOString() };
+    // Feste Adresse aus der Konfiguration, wenn gesetzt: Header kann man fälschen.
+    let base = process.env.APP_URL?.replace(/\/+$/, "");
+    if (!base) {
+      const h = await headers();
+      const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost";
+      base = `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")}://${host}`;
+    }
+    return { ok: true, link: `${base}/einladung/${token}`, expiresAt: expiresAt.toISOString() };
   } catch (e) {
     if (e instanceof svc.NotAllowedError) return { ok: false, message: "Dafür fehlt dir die Berechtigung." };
     throw e;

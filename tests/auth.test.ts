@@ -10,8 +10,8 @@ import { createDb, withOrganization, type Db, type Tx } from "@/db/client";
 import * as s from "@/db/schema";
 import { createPerson } from "@/server/people";
 import { NotAllowedError } from "@/server/actor";
-import { accessStates, authenticate, createInvitation, inviteAsActor, invitationIsValid, listAccounts, redeemInvitation } from "@/server/auth";
-import { hashPassword, LOGIN_LIMITS, parseInvitationToken, passwordProblem, verifyPassword } from "@/domain/password";
+import { accessStates, authenticate, currentPasswordVersion, createInvitation, inviteAsActor, invitationIsValid, listAccounts, redeemInvitation } from "@/server/auth";
+import { BusyError, hashPassword, LOGIN_LIMITS, parseInvitationToken, passwordProblem, verifyPassword } from "@/domain/password";
 import { canManageAccountOf } from "@/domain/permissions";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -69,15 +69,29 @@ afterAll(async () => {
 });
 
 describe("Passwort-Regeln", () => {
-  it("hasht mit Salz und prüft richtig", () => {
-    const h1 = hashPassword(GOOD);
-    const h2 = hashPassword(GOOD);
+  it("hasht mit Salz und prüft richtig", async () => {
+    const h1 = await hashPassword(GOOD);
+    const h2 = await hashPassword(GOOD);
     expect(h1).not.toBe(h2);
     expect(h1).not.toContain(GOOD);
-    expect(verifyPassword(GOOD, h1)).toBe(true);
-    expect(verifyPassword("falsch", h1)).toBe(false);
-    expect(verifyPassword(GOOD, "kaputt")).toBe(false);
-    expect(verifyPassword(GOOD, "scrypt$x$y$z$a$b")).toBe(false);
+    expect(await verifyPassword(GOOD, h1)).toBe(true);
+    expect(await verifyPassword("falsch", h1)).toBe(false);
+    expect(await verifyPassword(GOOD, "kaputt")).toBe(false);
+    expect(await verifyPassword(GOOD, "scrypt$x$y$z$a$b")).toBe(false);
+    expect(await verifyPassword("a".repeat(10_000), h1)).toBe(false);
+  });
+  it("viele gleichzeitige Hashes: begrenzt, weist Überschuss ab, blockiert den Hauptprozess nicht", async () => {
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 5);
+    const results = await Promise.allSettled(Array.from({ length: 40 }, () => verifyPassword("x", "scrypt$32768$8$2$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")));
+    clearInterval(timer);
+    expect(results.some((r) => r.status === "rejected" && r.reason instanceof BusyError)).toBe(true);
+    expect(results.some((r) => r.status === "fulfilled")).toBe(true);
+    expect(ticks).toBeGreaterThan(10); // Zeitgeber lief weiter, also kein Dauerblock
+  }, 60_000);
+  it("lehnt die E-Mail im Passwort und die Beispiel-Passwörter ab", () => {
+    expect(passwordProblem("lehrkraft-2026-xx", "lehrkraft@alpha.test")).toMatch(/E-Mail/);
+    expect(passwordProblem("Passwort1234", "x@y.de")).toBeTruthy();
   });
   it("lehnt zu kurze, zu leichte und zu lange Passwörter ab", () => {
     expect(passwordProblem("kurz", "x@y.de")).toMatch(/mindestens/);
@@ -93,11 +107,11 @@ describe("Passwort-Regeln", () => {
     expect(parseInvitationToken(`${randomUUID()}.${"a".repeat(43)}.x`)).toBeNull();
     expect(parseInvitationToken(`${randomUUID()}.${"a".repeat(43)}`)).not.toBeNull();
   });
-  it("Leitung darf alle einladen, Verwaltung nur Lehrkräfte und Teilnehmende", () => {
+  it("Leitung darf alle einladen, Verwaltung nur Teilnehmende", () => {
     expect(canManageAccountOf("ADMIN", "ADMIN")).toBe(true);
     expect(canManageAccountOf("STAFF", "ADMIN")).toBe(false);
     expect(canManageAccountOf("STAFF", "STAFF")).toBe(false);
-    expect(canManageAccountOf("STAFF", "TEACHER")).toBe(true);
+    expect(canManageAccountOf("STAFF", "TEACHER")).toBe(false);
     expect(canManageAccountOf("STAFF", "LEARNER")).toBe(true);
     expect(canManageAccountOf("TEACHER", "LEARNER")).toBe(false);
     expect(canManageAccountOf("LEARNER", "LEARNER")).toBe(false);
@@ -112,7 +126,7 @@ describe("Einladung und Anmeldung", () => {
   it("Link setzt das Passwort, danach gelingt die Anmeldung (E-Mail ohne Groß-/Kleinschreibung)", async () => {
     await setUp(a, "admin");
     const r = await authenticate(db, a.slug, " Leitung@Alpha.test ", GOOD);
-    expect(r).toEqual({ ok: true, membershipId: a.admin, organizationId: a.orgId });
+    expect(r).toMatchObject({ ok: true, membershipId: a.admin, organizationId: a.orgId });
     expect(await authenticate(db, a.slug, "leitung@alpha.test", "falsches-Passwort")).toEqual({ ok: false, reason: "invalid" });
   });
 
@@ -215,8 +229,9 @@ describe("Sperre nach Fehlversuchen", () => {
 });
 
 describe("Rechte beim Einladen", () => {
-  it("Verwaltung darf Lehrkraft einladen, aber nie Leitung oder Verwaltung", async () => {
-    await expect(run(a, (tx) => inviteAsActor(tx, a.staff, a.teacher))).resolves.toHaveProperty("token");
+  it("Verwaltung darf Teilnehmende einladen, aber nie Lehrkräfte, Leitung oder Verwaltung", async () => {
+    await expect(run(a, (tx) => inviteAsActor(tx, a.staff, a.learner))).resolves.toHaveProperty("token");
+    await expect(run(a, (tx) => inviteAsActor(tx, a.staff, a.teacher))).rejects.toBeInstanceOf(NotAllowedError);
     await expect(run(a, (tx) => inviteAsActor(tx, a.staff, a.admin))).rejects.toBeInstanceOf(NotAllowedError);
     await expect(run(a, (tx) => inviteAsActor(tx, a.staff, a.staff))).rejects.toBeInstanceOf(NotAllowedError);
   });
@@ -262,5 +277,64 @@ describe("Schultrennung der Anmeldedaten (Datenbank)", () => {
     await expect(run(a, (tx) => tx.insert(s.credentials).values({ organizationId: b.orgId, membershipId: b.teacher, passwordHash: "x" }))).rejects.toThrow();
     await expect(run(a, (tx) => tx.insert(s.loginAttempts).values({ organizationId: b.orgId, emailKey: "x", succeeded: false }))).rejects.toThrow();
     await expect(run(a, (tx) => tx.update(s.credentials).set({ passwordHash: "x" }).where(and(eq(s.credentials.membershipId, b.admin))).returning())).resolves.toEqual([]);
+  });
+});
+
+describe("Härtung nach Review", () => {
+  it("gleichzeitige Fehlversuche umgehen die Sperre nicht", async () => {
+    const m = await school("lambda");
+    await setUp(m, "admin");
+    const t0 = new Date("2026-11-10T10:00:00Z");
+    await Promise.allSettled(Array.from({ length: 40 }, () => authenticate(db, m.slug, "leitung@lambda.test", "falsch", t0)));
+    const rows = await run(m, (tx) => tx.select().from(s.loginAttempts).where(eq(s.loginAttempts.emailKey, "leitung@lambda.test")));
+    expect(rows.length).toBe(LOGIN_LIMITS.perEmail);
+    expect(await authenticate(db, m.slug, "leitung@lambda.test", GOOD, t0)).toEqual({ ok: false, reason: "locked" });
+  }, 60_000);
+
+  it("erfolgreiche Anmeldung setzt die Fehlversuche dieser E-Mail zurück", async () => {
+    const n = await school("my");
+    await setUp(n, "admin");
+    for (let i = 0; i < 5; i++) await authenticate(db, n.slug, "leitung@my.test", "falsch");
+    expect((await authenticate(db, n.slug, "leitung@my.test", GOOD)).ok).toBe(true);
+    const failed = await run(n, (tx) => tx.select().from(s.loginAttempts).where(and(eq(s.loginAttempts.emailKey, "leitung@my.test"), eq(s.loginAttempts.succeeded, false))));
+    expect(failed).toEqual([]);
+  });
+
+  it("neues Passwort ändert den Stand, der in der Sitzung steckt", async () => {
+    const o = await school("ny");
+    expect(await run(o, (tx) => currentPasswordVersion(tx, o.admin))).toBe(0);
+    await setUp(o, "admin");
+    const first = await authenticate(db, o.slug, "leitung@ny.test", GOOD);
+    expect(first.ok && first.passwordVersion).toBeGreaterThan(0);
+    expect(await run(o, (tx) => currentPasswordVersion(tx, o.admin))).toBe(first.ok ? first.passwordVersion : -1);
+    await new Promise((r) => setTimeout(r, 5));
+    await setUp(o, "admin", "Ganz-Neues-Passwort-9");
+    expect(await run(o, (tx) => currentPasswordVersion(tx, o.admin))).not.toBe(first.ok ? first.passwordVersion : -1);
+  });
+
+  it("weist Steuerzeichen und überlange Eingaben ab, ohne Fehler", async () => {
+    expect(await authenticate(db, a.slug, "x\u0000@y.de", GOOD)).toEqual({ ok: false, reason: "invalid" });
+    expect(await authenticate(db, "a\u0000b", "x@y.de", GOOD)).toEqual({ ok: false, reason: "invalid" });
+    expect(await authenticate(db, a.slug, `${"x".repeat(300)}@y.de`, GOOD)).toEqual({ ok: false, reason: "invalid" });
+    expect(await authenticate(db, a.slug, "leitung@alpha.test", "p".repeat(5000))).toEqual({ ok: false, reason: "invalid" });
+  });
+
+  it("Demo-Anmeldung läuft in Produktion nur zusammen mit Beispieldaten", async () => {
+    const { demoLoginEnabled } = await import("@/server/session");
+    const keep = { ...process.env };
+    try {
+      Object.assign(process.env, { DEMO_LOGIN: "1", NODE_ENV: "production" });
+      delete process.env.DEMO_SEED;
+      expect(demoLoginEnabled()).toBe(false);
+      process.env.DEMO_SEED = "1";
+      expect(demoLoginEnabled()).toBe(true);
+      Object.assign(process.env, { DEMO_LOGIN: "0", NODE_ENV: "development" });
+      expect(demoLoginEnabled()).toBe(false);
+    } finally {
+      for (const k of ["DEMO_LOGIN", "NODE_ENV", "DEMO_SEED"]) {
+        if (keep[k] === undefined) delete process.env[k];
+        else process.env[k] = keep[k];
+      }
+    }
   });
 });

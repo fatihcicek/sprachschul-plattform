@@ -11,6 +11,7 @@ const [slug, name, email, first, last, base = "http://localhost:3000"] = process
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL fehlt");
 if (!slug || !name || !email || !first || !last) throw new Error('Aufruf: school:create <kurzname> "<Schulname>" <email> "<Vorname>" "<Nachname>" [basis-url]');
+if (!/^https:\/\/|^http:\/\/localhost(:\d+)?$/.test(base)) throw new Error("Die Basis-Adresse muss mit https:// beginnen (nur localhost darf http sein).");
 if (!/^[a-z0-9-]{3,40}$/.test(slug)) throw new Error("Kurzname: 3–40 Zeichen, nur a–z, 0–9 und Bindestrich");
 
 const { db, pool } = createDb(url);

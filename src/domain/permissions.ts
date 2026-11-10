@@ -50,11 +50,12 @@ export function canInCourse(actor: Actor, permission: Permission, courseId: stri
 
 /**
  * Wessen Zugang darf jemand einrichten oder zurücksetzen? Die Leitung bei allen,
- * die Verwaltung nur bei Lehrkräften und Teilnehmenden. Sonst könnte die
- * Verwaltung sich über einen Einladungslink das Konto der Leitung aneignen.
+ * die Verwaltung nur bei Teilnehmenden. Die Verwaltung sieht den Link selbst; bei
+ * Lehrkräften könnte sie sich damit deren Rechte (Klassenbuch, Anwesenheit,
+ * Rückmeldungen) aneignen, bei Leitung und Verwaltung noch mehr.
  */
 export function canManageAccountOf(actorRole: Role, targetRole: Role): boolean {
   if (!can(actorRole, "account.invite")) return false;
   if (actorRole === "ADMIN") return true;
-  return targetRole === "TEACHER" || targetRole === "LEARNER";
+  return targetRole === "LEARNER";
 }

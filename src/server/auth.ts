@@ -2,14 +2,15 @@
 // Vor der Anmeldung ist nur der Kurzname der Schule bekannt: erst die Schule
 // finden (withSlugLookup), dann alles innerhalb dieser Schule (withOrganization).
 
-import { and, asc, count, eq, gt, gte, isNull, lt } from "drizzle-orm";
+import { and, asc, count, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
 import type { Db, Tx } from "@/db/client";
 import { withOrganization, withSlugLookup } from "@/db/client";
 import { auditEvents, credentials, invitations, loginAttempts, memberships, organizations, users } from "@/db/schema";
 import { can, canManageAccountOf, type Role } from "@/domain/permissions";
 import {
-  DUMMY_HASH,
+  dummyHash,
   hashPassword,
+  PASSWORD_MAX,
   INVITATION_DAYS,
   LOGIN_LIMITS,
   newInvitationToken,
@@ -20,49 +21,70 @@ import {
 import { loadActor, NotAllowedError } from "@/server/actor";
 
 export type LoginResult =
-  | { ok: true; membershipId: string; organizationId: string }
+  | { ok: true; membershipId: string; organizationId: string; passwordVersion: number }
   | { ok: false; reason: "invalid" | "locked" };
 
 const minutesAgo = (now: Date, m: number) => new Date(now.getTime() - m * 60_000);
+const CONTROL = /[\u0000-\u001f\u007f]/;
+const INVALID: LoginResult = { ok: false, reason: "invalid" };
 
-/** Gleiche Meldung für „Schule unbekannt“, „E-Mail unbekannt“ und „Passwort falsch“. */
-export async function authenticate(db: Db, slug: string, emailRaw: string, password: string, now: Date = new Date()): Promise<LoginResult> {
-  const email = emailRaw.trim().toLowerCase().slice(0, 254);
-  const [org] = await withSlugLookup(db, slug.trim().toLowerCase().slice(0, 80), (tx) => tx.select({ id: organizations.id, slug: organizations.slug }).from(organizations));
-  if (!org || org.slug !== slug.trim().toLowerCase()) {
-    verifyPassword(password, DUMMY_HASH); // gleiche Antwortzeit
-    return { ok: false, reason: "invalid" };
+/** Stand eines Passworts als Zahl; steckt im Cookie, damit ein neues Passwort alte Sitzungen beendet. 0 = noch kein Passwort. */
+export async function currentPasswordVersion(tx: Tx, membershipId: string): Promise<number> {
+  const [c] = await tx.select({ at: credentials.updatedAt }).from(credentials).where(eq(credentials.membershipId, membershipId));
+  return c ? c.at.getTime() : 0;
+}
+
+/**
+ * Gleiche Meldung für „Schule unbekannt“, „E-Mail unbekannt“ und „Passwort falsch“.
+ * Der Versuch wird vor dem teuren Hashen eingetragen (unter einer Sperre je E-Mail),
+ * damit gleichzeitige Anfragen die Begrenzung nicht umgehen.
+ */
+export async function authenticate(db: Db, slugRaw: string, emailRaw: string, password: string, now: Date = new Date()): Promise<LoginResult> {
+  const slug = slugRaw.trim().toLowerCase();
+  const email = emailRaw.trim().toLowerCase();
+  if (CONTROL.test(slug) || CONTROL.test(email) || slug.length > 80 || email.length > 254 || password.length > PASSWORD_MAX) {
+    await verifyPassword("x", await dummyHash());
+    return INVALID;
+  }
+  const [org] = await withSlugLookup(db, slug, (tx) => tx.select({ id: organizations.id }).from(organizations));
+  if (!org) {
+    await verifyPassword(password, await dummyHash()); // gleiche Antwortzeit
+    return INVALID;
   }
 
-  const known = await withOrganization(db, org.id, async (tx) => {
+  const step = await withOrganization(db, org.id, async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${org.id}:${email}`}))`);
+    await tx.delete(loginAttempts).where(lt(loginAttempts.attemptedAt, minutesAgo(now, 24 * 60)));
     const since = minutesAgo(now, LOGIN_LIMITS.windowMinutes);
     const [perEmail] = await tx
       .select({ n: count() })
       .from(loginAttempts)
       .where(and(eq(loginAttempts.emailKey, email), eq(loginAttempts.succeeded, false), gte(loginAttempts.attemptedAt, since)));
-    const [perSchool] = await tx
-      .select({ n: count() })
-      .from(loginAttempts)
-      .where(and(eq(loginAttempts.succeeded, false), gte(loginAttempts.attemptedAt, since)));
-    if ((perEmail?.n ?? 0) >= LOGIN_LIMITS.perEmail || (perSchool?.n ?? 0) >= LOGIN_LIMITS.perSchool) return "locked" as const;
+    const [perSchool] = await tx.select({ n: count() }).from(loginAttempts).where(and(eq(loginAttempts.succeeded, false), gte(loginAttempts.attemptedAt, since)));
+    if ((perEmail?.n ?? 0) >= LOGIN_LIMITS.perEmail || (perSchool?.n ?? 0) >= LOGIN_LIMITS.perSchool) return { locked: true as const };
 
+    // Als Fehlversuch vormerken; bei Erfolg wird der Eintrag unten umgestellt.
+    const [attempt] = await tx.insert(loginAttempts).values({ organizationId: org.id, emailKey: email, succeeded: false, attemptedAt: now }).returning({ id: loginAttempts.id });
     const [row] = await tx
-      .select({ membershipId: memberships.id, active: memberships.active, hash: credentials.passwordHash })
+      .select({ membershipId: memberships.id, active: memberships.active, hash: credentials.passwordHash, pv: credentials.updatedAt })
       .from(users)
       .innerJoin(memberships, eq(memberships.userId, users.id))
       .leftJoin(credentials, eq(credentials.membershipId, memberships.id))
       .where(eq(users.email, email));
-    return row ?? null;
+    return { locked: false as const, attemptId: attempt!.id, row };
   });
-  if (known === "locked") return { ok: false, reason: "locked" };
+  if (step.locked) return { ok: false, reason: "locked" };
 
-  const good = verifyPassword(password, known?.hash ?? DUMMY_HASH) && !!known?.hash && known.active;
+  const { row, attemptId } = step;
+  const passwordOk = await verifyPassword(password, row?.hash ?? (await dummyHash()));
+  if (!passwordOk || !row?.hash || !row.active) return INVALID;
+
   await withOrganization(db, org.id, async (tx) => {
-    await tx.insert(loginAttempts).values({ organizationId: org.id, emailKey: email, succeeded: good, attemptedAt: now });
-    // Alte Einträge aufräumen, damit die Tabelle nicht wächst.
-    await tx.delete(loginAttempts).where(lt(loginAttempts.attemptedAt, minutesAgo(now, 24 * 60)));
+    await tx.update(loginAttempts).set({ succeeded: true }).where(eq(loginAttempts.id, attemptId));
+    // Nach erfolgreicher Anmeldung beginnt die Zählung für diese E-Mail neu.
+    await tx.delete(loginAttempts).where(and(eq(loginAttempts.emailKey, email), eq(loginAttempts.succeeded, false)));
   });
-  return good && known ? { ok: true, membershipId: known.membershipId, organizationId: org.id } : { ok: false, reason: "invalid" };
+  return { ok: true, membershipId: row.membershipId, organizationId: org.id, passwordVersion: row.pv!.getTime() };
 }
 
 /** Legt einen Einladungslink an. Vorherige offene Links derselben Person werden ungültig. */
@@ -119,38 +141,41 @@ export async function redeemInvitation(db: Db, token: string, password: string, 
   const t = parseInvitationToken(token);
   const invalid: RedeemResult = { ok: false, reason: "invalid", message: "Dieser Link ist ungültig oder abgelaufen. Bitte die Schule um einen neuen." };
   if (!t) return invalid;
-  return withOrganization(db, t.organizationId, async (tx) => {
+  const open = await withOrganization(db, t.organizationId, async (tx) => {
     const [inv] = await tx
       .select({ id: invitations.id, membershipId: invitations.membershipId, email: users.email, active: memberships.active })
       .from(invitations)
       .innerJoin(memberships, eq(memberships.id, invitations.membershipId))
       .innerJoin(users, eq(users.id, memberships.userId))
       .where(and(eq(invitations.tokenHash, t.hash), isNull(invitations.usedAt), gt(invitations.expiresAt, now)));
-    if (!inv || !inv.active) return invalid;
-    const problem = passwordProblem(password, inv.email);
-    if (problem) return { ok: false, reason: "weak", message: problem };
+    return inv && inv.active ? inv : null;
+  });
+  if (!open) return invalid;
+  const problem = passwordProblem(password, open.email);
+  if (problem) return { ok: false, reason: "weak", message: problem };
 
+  // Das teure Hashen geschieht außerhalb der Datenbank-Transaktion.
+  const passwordHash = await hashPassword(password);
+  return withOrganization(db, t.organizationId, async (tx) => {
     // Atomar einlösen: nur die erste Anfrage setzt usedAt, jede weitere findet keine Zeile.
     const claimed = await tx
       .update(invitations)
       .set({ usedAt: now })
-      .where(and(eq(invitations.id, inv.id), isNull(invitations.usedAt)))
+      .where(and(eq(invitations.id, open.id), isNull(invitations.usedAt), gt(invitations.expiresAt, now)))
       .returning({ id: invitations.id });
     if (claimed.length === 0) return invalid;
-
-    const passwordHash = hashPassword(password);
     await tx
       .insert(credentials)
-      .values({ organizationId: t.organizationId, membershipId: inv.membershipId, passwordHash, updatedAt: now })
+      .values({ organizationId: t.organizationId, membershipId: open.membershipId, passwordHash, updatedAt: now })
       .onConflictDoUpdate({ target: credentials.membershipId, set: { passwordHash, updatedAt: now } });
     // Fehlversuche für diese E-Mail zählen nach einem neuen Passwort nicht mehr.
-    await tx.delete(loginAttempts).where(and(eq(loginAttempts.emailKey, inv.email), eq(loginAttempts.succeeded, false)));
+    await tx.delete(loginAttempts).where(and(eq(loginAttempts.emailKey, open.email), eq(loginAttempts.succeeded, false)));
     await tx.insert(auditEvents).values({
       organizationId: t.organizationId,
-      actorMembershipId: inv.membershipId,
+      actorMembershipId: open.membershipId,
       action: "account.password_set",
       entity: "membership",
-      entityId: inv.membershipId,
+      entityId: open.membershipId,
     });
     return { ok: true } as const;
   });
