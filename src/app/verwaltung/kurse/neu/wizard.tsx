@@ -103,16 +103,16 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
         {step === 0 && (
           <>
             <label htmlFor="name">Kursname</label>
-            <input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. BSK B2 Vormittag Herbst" />
+            <input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. BSK B2 Vormittag Herbst" maxLength={200} />
             <div className="grid2">
               <div>
                 <label htmlFor="category">Kursart</label>
-                <input id="category" list="course-types" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="frei wählbar" />
+                <input id="category" list="course-types" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="frei wählbar" maxLength={200} />
                 <datalist id="course-types">{COURSE_TYPE_SUGGESTIONS.map((c) => <option key={c} value={c} />)}</datalist>
               </div>
               <div>
                 <label htmlFor="bamf">BAMF-Kursnummer (optional)</label>
-                <input id="bamf" value={bamfNo} onChange={(e) => setBamfNo(e.target.value)} placeholder="z. B. 2026-06552" />
+                <input id="bamf" value={bamfNo} onChange={(e) => setBamfNo(e.target.value)} placeholder="z. B. 2026-06552" maxLength={40} />
               </div>
             </div>
             <div className="grid3">
@@ -233,9 +233,9 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
               const upd = (k: keyof NewLearner, v: string | boolean) => setNewLearners((x) => x.map((y) => (y.key === n.key ? { ...y, [k]: v } : y)));
               return (
                 <div key={n.key} className="person" style={{ flexWrap: "wrap" }}>
-                  <input aria-label="Vorname" placeholder="Vorname" value={n.firstName} onChange={(e) => upd("firstName", e.target.value)} style={{ flex: "1 1 140px" }} />
-                  <input aria-label="Nachname" placeholder="Nachname" value={n.lastName} onChange={(e) => upd("lastName", e.target.value)} style={{ flex: "1 1 140px" }} />
-                  <input aria-label="E-Mail" type="email" placeholder="E-Mail" value={n.email} onChange={(e) => upd("email", e.target.value)} style={{ flex: "2 1 200px" }} />
+                  <input aria-label="Vorname" placeholder="Vorname" value={n.firstName} maxLength={200} onChange={(e) => upd("firstName", e.target.value)} style={{ flex: "1 1 140px" }} />
+                  <input aria-label="Nachname" placeholder="Nachname" value={n.lastName} maxLength={200} onChange={(e) => upd("lastName", e.target.value)} style={{ flex: "1 1 140px" }} />
+                  <input aria-label="E-Mail" type="email" placeholder="E-Mail" value={n.email} maxLength={254} onChange={(e) => upd("email", e.target.value)} style={{ flex: "2 1 200px" }} />
                   <label className="muted" style={{ margin: 0, display: "flex", gap: 6, alignItems: "center" }}>
                     <input type="checkbox" checked={n.bamfFunded} onChange={(e) => upd("bamfFunded", e.target.checked)} style={{ width: 16, height: 16 }} /> BAMF
                   </label>
