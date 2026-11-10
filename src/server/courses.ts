@@ -2,6 +2,7 @@
 // withOrganization(); ein Fehler mitten im Anlegen rollt alles zurück.
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { Tx } from "@/db/client";
 import { auditEvents, courses, enrollments, lessonSessions, memberships, teachingAssignments, users } from "@/db/schema";
 import { checkPlan, expandPlan, type WeeklyPlan } from "@/domain/course-plan";
@@ -26,6 +27,47 @@ export type CreateCourseInput = {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Grenzen für eine Eingabe; schützt den Server vor übergroßen oder kaputten Anfragen. */
+export const LIMITS = { text: 200, people: 200, excludedDays: 400 };
+
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const id = z.string().uuid();
+const text = z.string().max(LIMITS.text);
+
+/** Form der Eingabe. Die Serveraktion bekommt ein Objekt vom Browser und darf ihm nichts glauben. */
+export const createCourseSchema = z
+  .object({
+    name: text,
+    category: text,
+    bamfCourseNumber: z.string().max(40).optional(),
+    plan: z
+      .object({
+        startDate: day,
+        endDate: day,
+        weekdays: z.array(z.number().int().min(1).max(7)).max(7),
+        startTime: z.string().regex(/^\d{2}:\d{2}$/),
+        endTime: z.string().regex(/^\d{2}:\d{2}$/),
+        ue: z.number().int().min(1).max(12),
+        mode: z.enum(["PRESENCE", "VIRTUAL"]),
+      })
+      .strict(),
+    excludedDays: z.array(day).max(LIMITS.excludedDays),
+    teacherIds: z.array(id).max(20),
+    learners: z.array(z.object({ membershipId: id, bamfFunded: z.boolean() }).strict()).max(LIMITS.people),
+    newLearners: z
+      .array(z.object({ firstName: text, lastName: text, email: z.string().max(254), bamfFunded: z.boolean() }).strict())
+      .max(LIMITS.people),
+  })
+  .strict();
+
+/** Liest die Eingabe streng ein oder meldet einen verständlichen Fehler. */
+export function parseCourseInput(raw: unknown): CreateCourseInput {
+  const r = createCourseSchema.safeParse(raw);
+  if (!r.success) throw new CourseInputError("Die Angaben sind unvollständig oder ungültig. Bitte prüfe die Eingaben.");
+  const v = r.data;
+  return { ...v, plan: { ...v.plan, weekdays: v.plan.weekdays as WeeklyPlan["weekdays"] } };
+}
+
 async function requireCourseAdmin(tx: Tx, actorMembershipId: string) {
   const actor = await loadActor(tx, actorMembershipId);
   for (const p of ["course.configure", "enrollment.manage", "session.schedule"] as const) {
@@ -46,6 +88,8 @@ export async function listPeople(tx: Tx, actorMembershipId: string) {
   return { teachers: rows.filter((r) => r.role === "TEACHER"), learners: rows.filter((r) => r.role === "LEARNER") };
 }
 
+const NAME_MISSING = "Neue Teilnehmende brauchen Vor- und Nachnamen.";
+
 /** Prüft alle Eingaben, bevor irgendetwas geschrieben wird. */
 export function validateCourseInput(input: CreateCourseInput): string[] {
   const errors: string[] = [];
@@ -56,7 +100,7 @@ export function validateCourseInput(input: CreateCourseInput): string[] {
   const emails = new Set<string>();
   for (const l of input.newLearners) {
     const email = l.email.trim().toLowerCase();
-    if (!l.firstName.trim() || !l.lastName.trim()) errors.push("Neue Teilnehmende brauchen Vor- und Nachnamen.");
+    if ((!l.firstName.trim() || !l.lastName.trim()) && !errors.includes(NAME_MISSING)) errors.push(NAME_MISSING);
     if (!EMAIL.test(email)) errors.push(`Ungültige E-Mail-Adresse: ${l.email || "(leer)"}`);
     if (emails.has(email)) errors.push(`E-Mail doppelt eingetragen: ${email}`);
     emails.add(email);
@@ -65,8 +109,12 @@ export function validateCourseInput(input: CreateCourseInput): string[] {
   return errors;
 }
 
-export async function createCourse(tx: Tx, actorMembershipId: string, input: CreateCourseInput) {
+export async function createCourse(tx: Tx, actorMembershipId: string, raw: unknown) {
   const actor = await requireCourseAdmin(tx, actorMembershipId);
+  const input = parseCourseInput(raw);
+  if (input.learners.length + input.newLearners.length > LIMITS.people) throw new CourseInputError(`Höchstens ${LIMITS.people} Teilnehmende je Kurs.`);
+  const learnerIds = input.learners.map((l) => l.membershipId);
+  if (new Set(learnerIds).size !== learnerIds.length) throw new CourseInputError("Eine Person ist doppelt ausgewählt.");
   const errors = validateCourseInput(input);
   if (errors.length) throw new CourseInputError(errors.join(" "));
 
@@ -81,7 +129,10 @@ export async function createCourse(tx: Tx, actorMembershipId: string, input: Cre
   if (input.newLearners.length) {
     const emails = input.newLearners.map((l) => l.email.trim().toLowerCase());
     const taken = await tx.select({ email: users.email }).from(users).where(inArray(users.email, emails));
-    if (taken.length) throw new CourseInputError(`Diese E-Mail gibt es an der Schule schon: ${taken.map((t) => t.email).join(", ")}. Bitte die Person aus der Liste wählen.`);
+    if (taken.length)
+      throw new CourseInputError(
+        `Diese E-Mail gibt es an der Schule schon: ${taken.map((t) => t.email).join(", ")}. Ist die Person Teilnehmende, bitte aus der Liste wählen; sonst eine andere E-Mail verwenden.`,
+      );
   }
 
   const org = actor.organizationId;

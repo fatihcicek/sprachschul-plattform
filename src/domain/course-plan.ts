@@ -22,8 +22,20 @@ export type PlannedDate = { day: string; startsAt: Date; endsAt: Date };
 
 /** Höchstzahl Termine je Kurs; schützt vor versehentlich riesigen Zeiträumen. */
 export const MAX_SESSIONS = 400;
+/** Längster erlaubter Kurszeitraum in Tagen (etwa drei Jahre). */
+export const MAX_SPAN_DAYS = 3 * 366;
 
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** Echtes Kalenderdatum im Format JJJJ-MM-TT (kein 30. Februar). */
+export function isCalendarDay(day: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const d = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day;
+}
+
+export function spanDays(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
+}
+
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function weekdayOf(day: string): Weekday {
@@ -61,9 +73,11 @@ export function localTimeToDate(day: string, time: string, timeZone: string = SC
 export function checkPlan(plan: WeeklyPlan): { errors: string[]; warnings: string[] } {
   const errors: string[] = [];
   const warnings: string[] = [];
-  if (!DAY.test(plan.startDate) || !DAY.test(plan.endDate)) errors.push("Bitte Beginn und Ende des Kurses angeben.");
+  if (!isCalendarDay(plan.startDate) || !isCalendarDay(plan.endDate)) errors.push("Bitte Beginn und Ende des Kurses angeben.");
   else if (plan.endDate < plan.startDate) errors.push("Das Kursende liegt vor dem Kursbeginn.");
+  else if (spanDays(plan.startDate, plan.endDate) > MAX_SPAN_DAYS) errors.push("Ein Kurs kann höchstens drei Jahre dauern.");
   if (plan.weekdays.length === 0) errors.push("Bitte mindestens einen Unterrichtstag wählen.");
+  else if (plan.weekdays.some((w) => !Number.isInteger(w) || w < 1 || w > 7)) errors.push("Ungültiger Wochentag.");
   if (!TIME.test(plan.startTime) || !TIME.test(plan.endTime)) errors.push("Bitte Uhrzeiten im Format HH:MM angeben.");
   if (errors.length) return { errors, warnings };
 
@@ -91,7 +105,10 @@ export function checkPlan(plan: WeeklyPlan): { errors: string[]; warnings: strin
 export function expandPlan(plan: WeeklyPlan, excludedDays: readonly string[]): PlannedDate[] {
   const excluded = new Set(excludedDays);
   const out: PlannedDate[] = [];
-  for (let day = plan.startDate; day <= plan.endDate && out.length <= MAX_SESSIONS; day = addDays(day, 1)) {
+  // Begrenzt durch die Zahl der Tage, nicht nur durch gefundene Termine: so endet
+  // die Schleife auch bei ungültigen Eingaben sicher.
+  const days = Math.min(spanDays(plan.startDate, plan.endDate), MAX_SPAN_DAYS);
+  for (let i = 0, day = plan.startDate; i <= days && out.length <= MAX_SESSIONS; i++, day = addDays(day, 1)) {
     if (!plan.weekdays.includes(weekdayOf(day)) || excluded.has(day)) continue;
     out.push({ day, startsAt: localTimeToDate(day, plan.startTime), endsAt: localTimeToDate(day, plan.endTime) });
   }

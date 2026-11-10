@@ -62,7 +62,7 @@ export async function feedbackAction(submissionId: string, formData: FormData) {
 
 export type CreateCourseResult = { ok: true; courseId: string; sessions: number; learners: number } | { ok: false; message: string };
 
-export async function createCourseAction(input: courseSvc.CreateCourseInput): Promise<CreateCourseResult> {
+export async function createCourseAction(input: unknown): Promise<CreateCourseResult> {
   try {
     const r = await asSessionUser((tx, me) => courseSvc.createCourse(tx, me, input));
     revalidatePath("/verwaltung");

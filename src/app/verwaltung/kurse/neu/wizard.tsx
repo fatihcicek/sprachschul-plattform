@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createCourseAction } from "@/app/actions";
 import { checkPlan, COURSE_TYPE_SUGGESTIONS, expandPlan, WEEKDAY_LABELS, type Weekday, type WeeklyPlan } from "@/domain/course-plan";
@@ -31,21 +31,38 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
   const check = useMemo(() => checkPlan(plan), [plan]);
   const dates = useMemo(() => (check.errors.length ? [] : expandPlan(plan, [])), [plan, check]);
   const active = dates.filter((d) => !excluded.includes(d.day));
+  const filledNew = newLearners.filter((n) => n.firstName.trim() || n.lastName.trim() || n.email.trim());
+  const rowProblem = (n: NewLearner) =>
+    !(n.firstName.trim() || n.lastName.trim() || n.email.trim())
+      ? ""
+      : !n.firstName.trim() || !n.lastName.trim()
+        ? "Vor- und Nachname fehlen"
+        : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(n.email.trim())
+          ? "E-Mail prüfen"
+          : "";
+  const dirty = Boolean(name || category || plan.startDate || teacherIds.length || Object.keys(picked).length || filledNew.length);
 
   const stepErrors: string[] = [
     [!name.trim() && "Bitte einen Kursnamen angeben.", !category.trim() && "Bitte eine Kursart angeben.", (!plan.startDate || !plan.endDate) && "Bitte Beginn und Ende angeben.", plan.startDate && plan.endDate && plan.endDate < plan.startDate && "Das Kursende liegt vor dem Kursbeginn."],
     [...check.errors, dates.length > 0 && active.length === 0 && "Alle Termine wurden entfernt."],
     [teacherIds.length === 0 && "Bitte mindestens eine Lehrkraft wählen."],
-    [],
+    [filledNew.some((n) => rowProblem(n)) && "Bitte die markierten neuen Teilnehmenden vervollständigen."],
   ][step]!.filter((x): x is string => typeof x === "string");
 
-  const setP = <K extends keyof WeeklyPlan>(k: K, v: WeeklyPlan[K]) => {
-    setPlan((p) => ({ ...p, [k]: v }));
-    if (k !== "ue" && k !== "mode") setExcluded([]);
-  };
+  // Herausgenommene Tage bleiben erhalten; Tage, die es im neuen Muster nicht mehr gibt, zählen einfach nicht.
+  const setP = <K extends keyof WeeklyPlan>(k: K, v: WeeklyPlan[K]) => setPlan((p) => ({ ...p, [k]: v }));
+  const [nextKey, setNextKey] = useState(1);
 
-  const pickedCount = Object.keys(picked).length + newLearners.length;
+  const pickedCount = Object.keys(picked).length + filledNew.length;
   const shown = learners.filter((l) => `${l.firstName} ${l.lastName} ${l.email}`.toLowerCase().includes(filter.toLowerCase()));
+
+  // Warnung beim Schließen oder Neuladen, solange etwas eingegeben ist.
+  useEffect(() => {
+    if (!dirty || pending) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, pending]);
 
   function submit() {
     setMessage("");
@@ -58,7 +75,7 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
         excludedDays: excluded,
         teacherIds,
         learners: Object.entries(picked).map(([membershipId, bamfFunded]) => ({ membershipId, bamfFunded })),
-        newLearners: newLearners.map(({ firstName, lastName, email, bamfFunded }) => ({ firstName, lastName, email, bamfFunded })),
+        newLearners: filledNew.map(({ firstName, lastName, email, bamfFunded }) => ({ firstName, lastName, email, bamfFunded })),
       });
       if (r.ok) router.push(`/verwaltung?neu=${r.courseId}`);
       else setMessage(r.message);
@@ -223,10 +240,14 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
                     <input type="checkbox" checked={n.bamfFunded} onChange={(e) => upd("bamfFunded", e.target.checked)} style={{ width: 16, height: 16 }} /> BAMF
                   </label>
                   <button type="button" className="ghost" onClick={() => setNewLearners((x) => x.filter((y) => y.key !== n.key))}>Entfernen</button>
+                  {rowProblem(n) && <span className="rowerr" role="alert">{rowProblem(n)}</span>}
                 </div>
               );
             })}
-            <button type="button" className="ghost" style={{ marginTop: 8 }} onClick={() => setNewLearners((x) => [...x, { key: Date.now(), firstName: "", lastName: "", email: "", bamfFunded: false }])}>
+            <button type="button" className="ghost" style={{ marginTop: 8 }} onClick={() => {
+                setNewLearners((x) => [...x, { key: nextKey, firstName: "", lastName: "", email: "", bamfFunded: false }]);
+                setNextKey((k) => k + 1);
+              }}>
               + Neue Person hinzufügen
             </button>
 
@@ -236,23 +257,30 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
                 <strong>{name || "Ohne Namen"}</strong> · {category} {bamfNo && `· BAMF ${bamfNo}`} · {plan.mode === "VIRTUAL" ? "online" : "Präsenz"}
               </dd>
               <dd>
-                {active.length} Termine, {plan.weekdays.map((w) => WEEKDAY_LABELS[w]).join(", ")} {plan.startTime}–{plan.endTime} Uhr, {plan.ue} UE · {teacherIds.length} Lehrkraft · {pickedCount} Teilnehmende
+                {active.length} Termine, {plan.weekdays.map((w) => WEEKDAY_LABELS[w]).join(", ")} {plan.startTime}–{plan.endTime} Uhr, {plan.ue} UE · {teacherIds.length} {teacherIds.length === 1 ? "Lehrkraft" : "Lehrkräfte"} · {pickedCount} Teilnehmende
               </dd>
             </dl>
           </>
         )}
 
-        {stepErrors.length > 0 && step < 3 && (step > 0 || name || category || plan.startDate) && <div className="err">{stepErrors.join(" ")}</div>}
+        {stepErrors.length > 0 && (step > 0 || name || category || plan.startDate) && <div className="err">{stepErrors.join(" ")}</div>}
         {message && <div className="err" role="alert">{message}</div>}
 
         <div className="actions">
-          <button type="button" className="ghost" onClick={() => (step === 0 ? router.push("/verwaltung") : setStep(step - 1))}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              if (step > 0) return setStep(step - 1);
+              if (!dirty || window.confirm("Kurs nicht anlegen? Die Eingaben gehen verloren.")) router.push("/verwaltung");
+            }}
+          >
             {step === 0 ? "Abbrechen" : "Zurück"}
           </button>
           {step < 3 ? (
             <button type="button" disabled={stepErrors.length > 0} onClick={() => setStep(step + 1)}>Weiter</button>
           ) : (
-            <button type="button" disabled={pending} onClick={submit}>{pending ? "Wird angelegt …" : "Kurs anlegen"}</button>
+            <button type="button" disabled={pending || stepErrors.length > 0} onClick={submit}>{pending ? "Wird angelegt …" : "Kurs anlegen"}</button>
           )}
         </div>
       </div>

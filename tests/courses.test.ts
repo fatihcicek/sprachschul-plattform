@@ -119,4 +119,46 @@ describe("Kurs in einem Ablauf anlegen", () => {
       run(a, (tx) => createCourse(tx, a.staff, input(a, { newLearners: [{ firstName: "A", lastName: "B", email: "kaputt", bamfFunded: false }] }))),
     ).rejects.toThrow(/Ungültige E-Mail/);
   });
+
+  it("weist manipulierte Anfragen mit klarer Meldung ab, statt abzustürzen oder hängenzubleiben", async () => {
+    const bad = [
+      input(a, { plan: { ...input(a).plan, endDate: "9999-12-31", weekdays: [8 as never] } }),
+      input(a, { plan: { ...input(a).plan, weekdays: ["1" as never] } }),
+      input(a, { plan: { ...input(a).plan, startDate: "2026-13-01" } }),
+      input(a, { plan: { ...input(a).plan, startDate: "2026-02-30" } }),
+      input(a, { plan: { ...input(a).plan, mode: "FOO" as never } }),
+      input(a, { plan: { ...input(a).plan, endDate: "2035-01-01" } }),
+      input(a, { newLearners: [{ firstName: "A", lastName: "B", email: 5 as never, bamfFunded: false }] }),
+      input(a, { name: "x".repeat(500) }),
+      input(a, { newLearners: Array.from({ length: 201 }, (_, i) => ({ firstName: "A", lastName: "B", email: `p${i}@alpha.test`, bamfFunded: false })) }),
+      { ...input(a), extra: true },
+      null,
+    ];
+    for (const raw of bad) await expect(run(a, (tx) => createCourse(tx, a.staff, raw))).rejects.toBeInstanceOf(CourseInputError);
+  }, 10_000);
+
+  it("meldet doppelt ausgewählte Personen verständlich", async () => {
+    const twice = [{ membershipId: a.learners[0]!, bamfFunded: false }, { membershipId: a.learners[0]!, bamfFunded: true }];
+    await expect(run(a, (tx) => createCourse(tx, a.staff, input(a, { learners: twice, newLearners: [] })))).rejects.toThrow(/doppelt/);
+  });
+
+  it("nimmt alles zurück, wenn nach dem Schreiben noch etwas schiefgeht", async () => {
+    const count = async () => (await run(a, (tx) => tx.select().from(s.courses))).length;
+    const before = await count();
+    await expect(
+      run(a, async (tx) => {
+        await createCourse(tx, a.staff, input(a, { name: "Wird zurückgenommen", newLearners: [{ firstName: "Z", lastName: "Z", email: "z@alpha.test", bamfFunded: false }] }));
+        throw new Error("Absturz nach dem Schreiben");
+      }),
+    ).rejects.toThrow("Absturz");
+    expect(await count()).toBe(before);
+    expect(await run(a, (tx) => tx.select().from(s.users).where(eq(s.users.email, "z@alpha.test")))).toEqual([]);
+  });
+
+  it("verweigert deaktivierten Konten das Anlegen und nimmt keine deaktivierten Personen auf", async () => {
+    await run(a, (tx) => tx.update(s.memberships).set({ active: false }).where(eq(s.memberships.id, a.learners[1]!)));
+    await expect(run(a, (tx) => createCourse(tx, a.staff, input(a, { learners: [{ membershipId: a.learners[1]!, bamfFunded: false }], newLearners: [] })))).rejects.toThrow(/Teilnehmende/);
+    await run(a, (tx) => tx.update(s.memberships).set({ active: false }).where(eq(s.memberships.id, a.admin)));
+    await expect(run(a, (tx) => createCourse(tx, a.admin, input(a)))).rejects.toBeInstanceOf(NotAllowedError);
+  });
 });

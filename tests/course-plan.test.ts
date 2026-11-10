@@ -27,7 +27,8 @@ describe("Kursplanung aus dem Wochenmuster", () => {
     expect(checkPlan({ ...base, weekdays: [] }).errors.length).toBeGreaterThan(0);
     expect(checkPlan({ ...base, ue: 6 }).errors[0]).toMatch(/6 UE brauchen 270 Minuten/);
     expect(checkPlan({ ...base, startDate: "2026-11-07", endDate: "2026-11-08" }).errors).toContain("Im gewählten Zeitraum liegt kein Unterrichtstag.");
-    expect(checkPlan({ ...base, endDate: "2029-12-31" }).errors[0]).toMatch(/höchstens 400/);
+    expect(checkPlan({ ...base, endDate: "2028-06-30" }).errors[0]).toMatch(/höchstens 400/);
+    expect(checkPlan({ ...base, endDate: "2035-01-01" }).errors[0]).toMatch(/drei Jahre/);
   });
 
   it("warnt bei mehr als 4 UE online, blockiert aber nicht", () => {
@@ -35,5 +36,11 @@ describe("Kursplanung aus dem Wochenmuster", () => {
     expect(r.errors).toEqual([]);
     expect(r.warnings[0]).toMatch(/höchstens 4 UE/);
     expect(checkPlan({ ...base, mode: "VIRTUAL", ue: 4 }).warnings).toEqual([]);
+  });
+
+  it("endet auch bei unsinnigen Mustern sofort", () => {
+    const started = Date.now();
+    expect(expandPlan({ ...base, endDate: "9999-12-31", weekdays: [8 as never] }, [])).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 });

@@ -48,3 +48,4 @@ h1 { font-size: 28px; margin: 8px 0 20px; letter-spacing: -.01em; }
 .stat b { color: var(--ink); font-size: 15px; }
 .summary dt { color: var(--muted); font-size:13px; margin-top:10px; }
 .summary dd { margin: 2px 0 0; }
+.rowerr { flex-basis:100%; color:#8A1C12; font-size:13px; }
