@@ -2,7 +2,7 @@
 // echte Konten ersetzen später nur loginAs(), nicht den Rest.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, organizations, users } from "@/db/schema";
@@ -54,7 +54,11 @@ export async function requireSession(): Promise<Session> {
 }
 
 export async function setSession(session: Session) {
-  (await cookies()).set(COOKIE, encodeSession(session), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: MAX_AGE });
+  // "secure" nur, wenn die Seite wirklich über HTTPS kommt; sonst würde der
+  // Browser das Cookie auf einer Testadresse ohne Zertifikat verwerfen.
+  const h = await headers();
+  const https = h.get("x-forwarded-proto") === "https" || h.get("x-forwarded-ssl") === "on";
+  (await cookies()).set(COOKIE, encodeSession(session), { httpOnly: true, sameSite: "lax", secure: https, path: "/", maxAge: MAX_AGE });
 }
 
 export async function clearSession() {
