@@ -49,3 +49,6 @@ h1 { font-size: 28px; margin: 8px 0 20px; letter-spacing: -.01em; }
 .summary dt { color: var(--muted); font-size:13px; margin-top:10px; }
 .summary dd { margin: 2px 0 0; }
 .rowerr { flex-basis:100%; color:#8A1C12; font-size:13px; }
+.importbox { margin-top: 16px; padding: 14px; border: 1px dashed var(--line); border-radius: 12px; background: #FBFAF7; }
+.filepick { display:inline-block; border:1px solid var(--line); border-radius:10px; padding:8px 14px; cursor:pointer; background:#fff; font-size:15px; }
+.filepick input { display:none; }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createCourseAction } from "@/app/actions";
 import { checkPlan, COURSE_TYPE_SUGGESTIONS, expandPlan, WEEKDAY_LABELS, type Weekday, type WeeklyPlan } from "@/domain/course-plan";
+import { IMPORT_TEMPLATE, parsePeopleTable } from "@/domain/people-import";
 
 type Person = { membershipId: string; firstName: string; lastName: string; email: string };
 type NewLearner = { key: number; firstName: string; lastName: string; email: string; bamfFunded: boolean };
@@ -26,6 +27,9 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
   const [newLearners, setNewLearners] = useState<NewLearner[]>([]);
   const [filter, setFilter] = useState("");
   const [message, setMessage] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importReport, setImportReport] = useState<{ summary: string; problems: string[] } | null>(null);
   const [pending, start] = useTransition();
 
   const check = useMemo(() => checkPlan(plan), [plan]);
@@ -55,6 +59,41 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
 
   const pickedCount = Object.keys(picked).length + filledNew.length;
   const shown = learners.filter((l) => `${l.firstName} ${l.lastName} ${l.email}`.toLowerCase().includes(filter.toLowerCase()));
+
+  function applyImport(text: string) {
+    const { people, problems } = parsePeopleTable(text);
+    const learnerByEmail = new Map(learners.map((l) => [l.email.toLowerCase(), l.membershipId]));
+    const teacherEmails = new Set(teachers.map((t) => t.email.toLowerCase()));
+    const already = new Set(newLearners.map((n) => n.email.trim().toLowerCase()));
+    const notes: { line: number; text: string }[] = problems.map((p) => ({ line: p.line, text: p.line ? `Zeile ${p.line}: ${p.message}` : p.message }));
+    const nextPicked = { ...picked };
+    const added: NewLearner[] = [];
+    let existing = 0;
+    let key = nextKey;
+    for (const p of people) {
+      const mid = learnerByEmail.get(p.email);
+      if (mid) {
+        nextPicked[mid] = p.bamfFunded || Boolean(nextPicked[mid]);
+        existing++;
+      } else if (teacherEmails.has(p.email)) notes.push({ line: p.line, text: `Zeile ${p.line}: ${p.email} gehört zu einer Lehrkraft` });
+      else if (already.has(p.email)) notes.push({ line: p.line, text: `Zeile ${p.line}: ${p.email} steht schon in der Liste` });
+      else {
+        added.push({ key: key++, firstName: p.firstName, lastName: p.lastName, email: p.email, bamfFunded: p.bamfFunded });
+        already.add(p.email);
+      }
+    }
+    setPicked(nextPicked);
+    setNewLearners((x) => [...x.filter((n) => n.firstName.trim() || n.lastName.trim() || n.email.trim()), ...added]);
+    setNextKey(key);
+    setImportReport({
+      summary: `${existing + added.length} übernommen: ${existing} schon an der Schule (ausgewählt), ${added.length} neu.`,
+      problems: notes.sort((a, b) => a.line - b.line).map((n) => n.text),
+    });
+    if (existing + added.length > 0) {
+      setImportText("");
+      setImportOpen(false);
+    }
+  }
 
   // Warnung beim Schließen oder Neuladen, solange etwas eingegeben ist.
   useEffect(() => {
@@ -228,6 +267,48 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
                 </div>
               );
             })}
+            <div className="importbox">
+              {!importOpen ? (
+                <button type="button" className="ghost" onClick={() => setImportOpen(true)}>Aus Tabelle übernehmen (Excel, CSV)</button>
+              ) : (
+                <>
+                  <label htmlFor="import-text" style={{ marginTop: 0 }}>
+                    Zeilen aus Excel hier einfügen <span className="muted">oder eine CSV-Datei wählen. Spalten: Vorname, Nachname, E-Mail, BAMF (ja/nein, optional).</span>
+                  </label>
+                  <textarea id="import-text" value={importText} onChange={(e) => setImportText(e.target.value)} style={{ minHeight: 120 }} placeholder={"Vorname\tNachname\tE-Mail\tBAMF"} />
+                  <div className="row" style={{ marginTop: 8, flexWrap: "wrap", gap: 8 }}>
+                    <div className="row" style={{ gap: 12 }}>
+                      <label className="ghost filepick" style={{ margin: 0 }}>
+                        CSV-Datei wählen
+                        <input
+                          type="file"
+                          accept=".csv,.txt,text/csv"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (f) applyImport(await f.text());
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      <a className="muted" download="teilnehmende-vorlage.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent("\uFEFF" + IMPORT_TEMPLATE)}`}>Vorlage herunterladen</a>
+                    </div>
+                    <div className="row" style={{ gap: 8 }}>
+                      <button type="button" className="ghost" onClick={() => setImportOpen(false)}>Schließen</button>
+                      <button type="button" disabled={!importText.trim()} onClick={() => applyImport(importText)}>Übernehmen</button>
+                    </div>
+                  </div>
+                </>
+              )}
+              {importReport && (
+                <div className={importReport.problems.length ? "warn" : "okbox"} role="status" style={{ marginBottom: 0 }}>
+                  {importReport.summary}
+                  {importReport.problems.length > 0 && (
+                    <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{importReport.problems.slice(0, 10).map((p) => <li key={p}>{p}</li>)}</ul>
+                  )}
+                  {importReport.problems.length > 10 && <div>… und {importReport.problems.length - 10} weitere</div>}
+                </div>
+              )}
+            </div>
             <p style={{ marginTop: 20, marginBottom: 4 }}><strong>Neue Teilnehmende</strong></p>
             {newLearners.map((n) => {
               const upd = (k: keyof NewLearner, v: string | boolean) => setNewLearners((x) => x.map((y) => (y.key === n.key ? { ...y, [k]: v } : y)));
