@@ -36,6 +36,13 @@
       "when": 1794272159903,
       "tag": "0004_anmeldung_demo",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794304930922,
+      "tag": "0005_personen_je_schule",
+      "breakpoints": true
     }
   ]
 }

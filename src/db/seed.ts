@@ -1,27 +1,23 @@
 // Legt eine Beispielschule mit erfundenen Personen an. Nur für Entwicklung und Tests.
 
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
-import { withOrganization, type Db } from "./client";
+import { withOrganization, withSlugLookup, type Db } from "./client";
 import * as s from "./schema";
 import { proposeAttendance } from "../server/attendance";
+import { createPerson } from "../server/people";
 
 const SLUG = "beispielschule";
 const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00+01:00`);
 
 export async function seedDemo(db: Db): Promise<boolean> {
-  const [existingUser] = await db.select().from(s.users).where(eq(s.users.email, "sabine.brandt@beispielschule.test"));
-  if (existingUser) {
-    return false;
-  }
+  const [existing] = await withSlugLookup(db, SLUG, (tx) => tx.select({ id: s.organizations.id }).from(s.organizations));
+  if (existing) return false;
   const orgId = randomUUID();
   await withOrganization(db, orgId, async (tx) => {
     await tx.insert(s.organizations).values({ id: orgId, name: "Beispielschule", slug: SLUG });
     const member = async (role: (typeof s.role.enumValues)[number], firstName: string, lastName: string) => {
       const email = `${firstName}.${lastName}@beispielschule.test`.toLowerCase().replaceAll(" ", "-");
-      const [u] = await tx.insert(s.users).values({ email, firstName, lastName }).returning();
-      const [m] = await tx.insert(s.memberships).values({ organizationId: orgId, userId: u!.id, role }).returning();
-      return m!.id;
+      return (await createPerson(tx, orgId, { email, firstName, lastName, role })).membershipId;
     };
     await member("ADMIN", "Sabine", "Brandt");
     const teacher = await member("TEACHER", "Jonas", "Weber");

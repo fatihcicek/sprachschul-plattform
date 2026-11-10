@@ -8,6 +8,7 @@ import { Client, type Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, withOrganization, type Db } from "@/db/client";
 import * as s from "@/db/schema";
+import { createPerson } from "@/server/people";
 import { isLate, prepareSubmit, assertCanReview, SubmissionRuleError, wordCount } from "@/domain/submission";
 import * as svc from "@/server/assignments";
 
@@ -43,9 +44,7 @@ beforeAll(async () => {
   await run(async (tx) => {
     await tx.insert(s.organizations).values({ id: orgId, name: "Schule", slug: "schule" });
     const member = async (role: (typeof s.role.enumValues)[number], first: string) => {
-      const [u] = await tx.insert(s.users).values({ email: `${first}@schule.test`, firstName: first, lastName: "Test" }).returning();
-      const [m] = await tx.insert(s.memberships).values({ organizationId: orgId, userId: u!.id, role }).returning();
-      return m!.id;
+      return (await createPerson(tx, orgId, { email: `${first}@schule.test`, firstName: first, lastName: "Test", role })).membershipId;
     };
     teacher = await member("TEACHER", "lehrkraft");
     otherTeacher = await member("TEACHER", "vertretung");

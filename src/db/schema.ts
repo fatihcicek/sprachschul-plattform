@@ -51,14 +51,20 @@ const organizationId = () =>
     .notNull()
     .references(() => organizations.id, { onDelete: "restrict" });
 
-// Eine Person. Gehört keiner Schule; die Zugehörigkeit steht in memberships.
-export const users = pgTable("users", {
-  id: id(),
-  email: text("email").notNull().unique(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  createdAt: createdAt(),
-});
+// Eine Person gehört genau einer Schule. Ist jemand an zwei Schulen, gibt es ihn
+// zweimal – so kann keine Schule Daten einer Person der anderen sehen oder ändern.
+export const users = pgTable(
+  "users",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    email: text("email").notNull(),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [unique().on(t.organizationId, t.email), unique().on(t.id, t.organizationId)],
+);
 
 // Zugehörigkeit einer Person zu einer Schule mit genau einer Rolle.
 export const memberships = pgTable(
@@ -66,14 +72,16 @@ export const memberships = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+    userId: uuid("user_id").notNull(),
     role: role("role").notNull(),
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },
-  (t) => [unique().on(t.organizationId, t.userId), unique().on(t.id, t.organizationId)],
+  (t) => [
+    unique().on(t.organizationId, t.userId),
+    unique().on(t.id, t.organizationId),
+    foreignKey({ columns: [t.userId, t.organizationId], foreignColumns: [users.id, users.organizationId] }),
+  ],
 );
 
 export const courses = pgTable(
