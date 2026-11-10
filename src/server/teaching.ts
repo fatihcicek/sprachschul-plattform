@@ -2,13 +2,14 @@
 // Alle Funktionen erwarten eine Transaktion aus withOrganization(). Rechte stehen
 // in src/domain/permissions.ts und werden hier je Kurs geprüft.
 
-import { and, asc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, ne, or } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
   attendanceCorrections,
   attendanceRecords,
   auditEvents,
   classRegisterEntries,
+  classRegisterVersions,
   connectionEvents,
   courses,
   enrollments,
@@ -21,9 +22,9 @@ import { computePresence, type AttendanceStatus, type Interval } from "@/domain/
 import { canInCourse, type Permission } from "@/domain/permissions";
 import { localDay } from "@/domain/schedule";
 import { loadActor, NotAllowedError, requireInCourse } from "@/server/actor";
-import { confirmAttendance, proposeAttendance } from "@/server/attendance";
+import { AttendanceRuleError, confirmAttendance, proposeAttendance } from "@/server/attendance";
 
-export { NotAllowedError };
+export { NotAllowedError, AttendanceRuleError };
 export class TeachingRuleError extends Error {}
 
 export const REGISTER_MAX = 5000;
@@ -49,7 +50,7 @@ async function requireView(tx: Tx, me: string, courseId: string) {
 
 export type SessionListItem = { sessionId: string; courseName: string; startsAt: Date; endsAt: Date; status: "PLANNED" | "LIVE" | "ENDED" | "CLOSED"; mode: "PRESENCE" | "VIRTUAL" };
 
-/** Termine der eigenen Kurse (Leitung und Verwaltung: aller Kurse) von 30 Tage zurück bis 14 Tage voraus. */
+/** Termine der eigenen Kurse (Leitung und Verwaltung: aller Kurse): 30 Tage zurück, 14 Tage voraus; nicht abgeschlossene länger. */
 export async function listMySessions(tx: Tx, me: string, now: Date = new Date()): Promise<SessionListItem[]> {
   const actor = await loadActor(tx, me);
   if (!actor.active || actor.role === "LEARNER") throw new NotAllowedError("session.teach");
@@ -59,7 +60,14 @@ export async function listMySessions(tx: Tx, me: string, now: Date = new Date())
     .select({ s: lessonSessions, name: courses.name })
     .from(lessonSessions)
     .innerJoin(courses, eq(courses.id, lessonSessions.courseId))
-    .where(and(eq(courses.status, "ACTIVE"), gte(lessonSessions.startsAt, from), lt(lessonSessions.startsAt, until)))
+    .where(
+      and(
+        eq(courses.status, "ACTIVE"),
+        lt(lessonSessions.startsAt, until),
+        // Letzte 30 Tage; nicht abgeschlossene Termine bleiben bis zu einem Jahr zurück sichtbar.
+        or(gte(lessonSessions.startsAt, from), and(ne(lessonSessions.status, "CLOSED"), gte(lessonSessions.startsAt, new Date(now.getTime() - 365 * 86_400_000)))),
+      ),
+    )
     .orderBy(asc(lessonSessions.startsAt));
   return rows
     .filter((r) => VIEW.some((p) => canInCourse(actor, p, r.s.courseId)))
@@ -101,7 +109,7 @@ export async function loadRoom(tx: Tx, me: string, sessionId: string, now: Date 
     .from(enrollments)
     .innerJoin(memberships, eq(memberships.id, enrollments.membershipId))
     .where(eq(enrollments.courseId, c.id));
-  const present = enrolled.filter((e) => e.active && e.startsOn <= day && (e.endsOn === null || e.endsOn >= day));
+  const inCourse = new Set(enrolled.filter((e) => e.active && e.startsOn <= day && (e.endsOn === null || e.endsOn >= day)).map((e) => e.membershipId));
 
   const people = await tx.select({ id: memberships.id, f: users.firstName, l: users.lastName }).from(memberships).innerJoin(users, eq(users.id, memberships.userId));
   const nameOf = (id: string | null) => {
@@ -109,11 +117,13 @@ export async function loadRoom(tx: Tx, me: string, sessionId: string, now: Date 
     return p ? `${p.f} ${p.l}` : "Unbekannt";
   };
   const records = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.sessionId, s.id));
+  // Wer einen Datensatz hat (z. B. bestätigt, später deaktiviert), bleibt im Protokoll sichtbar.
+  const present = [...new Set([...inCourse, ...records.map((r) => r.membershipId)])].map((membershipId) => ({ membershipId }));
   const events = await tx.select().from(connectionEvents).where(eq(connectionEvents.sessionId, s.id)).orderBy(asc(connectionEvents.occurredAt));
   const recordIds = records.map((r) => r.id);
   const corrections = recordIds.length ? await tx.select().from(attendanceCorrections).where(inArray(attendanceCorrections.attendanceRecordId, recordIds)).orderBy(asc(attendanceCorrections.createdAt)) : [];
   const [reg] = await tx.select().from(classRegisterEntries).where(eq(classRegisterEntries.sessionId, s.id));
-  const [org] = await tx.select({ name: organizations.name }).from(organizations);
+  const [org] = await tx.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, actor.organizationId));
 
   const learners: RoomLearner[] = present
     .map((e) => {
@@ -169,6 +179,9 @@ export async function confirmAllAsActor(tx: Tx, me: string, sessionId: string, n
   const { s, c } = await loadSession(tx, sessionId);
   await requireInCourse(tx, me, "attendance.review", c.id);
   if (now < s.endsAt) throw new TeachingRuleError("Bestätigen ist erst nach Ende des Termins möglich.");
+  if (s.status === "CLOSED") throw new TeachingRuleError("Der Termin ist abgeschlossen.");
+  // Vorher neu berechnen, falls Einwahldaten verspätet eingetroffen sind (Handänderungen bleiben unberührt).
+  await proposeAttendance(tx, sessionId);
   const open = await tx
     .select({ id: attendanceRecords.id })
     .from(attendanceRecords)
@@ -176,8 +189,15 @@ export async function confirmAllAsActor(tx: Tx, me: string, sessionId: string, n
   return confirmAttendance(tx, me, open.map((r) => r.id));
 }
 
-/** Schreibt oder ändert den Klassenbucheintrag. Nach Abschluss des Termins gesperrt; jede Änderung wird protokolliert. */
-export async function saveRegister(tx: Tx, me: string, sessionId: string, contentRaw: string, now: Date = new Date()) {
+/**
+ * Schreibt oder ändert den Klassenbucheintrag. Jede Fassung bleibt als eigene Version erhalten.
+ * `basis` ist der Stand (updatedAt), den die Person beim Öffnen gesehen hat: Hat inzwischen jemand
+ * anders gespeichert, wird nicht still überschrieben. Nach Abschluss des Termins gesperrt.
+ */
+export async function saveRegister(tx: Tx, me: string, sessionId: string, contentRaw: string, now: Date = new Date(), basis: string | null = null): Promise<{ version: string }> {
+  // Termin sperren: gleichzeitiges Abschließen und Speichern laufen nacheinander.
+  const [locked] = await tx.select({ id: lessonSessions.id }).from(lessonSessions).where(eq(lessonSessions.id, sessionId)).for("update");
+  if (!locked) throw new TeachingRuleError("Termin nicht gefunden");
   const { s, c } = await loadSession(tx, sessionId);
   const actor = await requireInCourse(tx, me, "register.write", c.id);
   if (now < s.startsAt) throw new TeachingRuleError("Der Termin hat noch nicht begonnen.");
@@ -185,11 +205,16 @@ export async function saveRegister(tx: Tx, me: string, sessionId: string, conten
   const content = contentRaw.trim();
   if (!content) throw new TeachingRuleError("Bitte trage ein, was im Unterricht behandelt wurde.");
   if (content.length > REGISTER_MAX) throw new TeachingRuleError(`Der Eintrag darf höchstens ${REGISTER_MAX} Zeichen haben.`);
-  const [existing] = await tx.select().from(classRegisterEntries).where(eq(classRegisterEntries.sessionId, sessionId));
+  const [existing] = await tx.select().from(classRegisterEntries).where(eq(classRegisterEntries.sessionId, sessionId)).for("update");
+  if (existing && existing.updatedAt.toISOString() !== basis) {
+    throw new TeachingRuleError("Das Klassenbuch wurde inzwischen geändert (von dir in einem anderen Fenster oder von jemand anderem). Bitte lade die Seite neu.");
+  }
+  if (!existing && basis) throw new TeachingRuleError("Das Klassenbuch hat sich geändert. Bitte lade die Seite neu.");
   await tx
     .insert(classRegisterEntries)
     .values({ organizationId: actor.organizationId, sessionId, content, authorMembershipId: me, updatedAt: now })
     .onConflictDoUpdate({ target: classRegisterEntries.sessionId, set: { content, authorMembershipId: me, updatedAt: now } });
+  await tx.insert(classRegisterVersions).values({ organizationId: actor.organizationId, sessionId, content, authorMembershipId: me, createdAt: now });
   await tx.insert(auditEvents).values({
     organizationId: actor.organizationId,
     actorMembershipId: me,
@@ -198,10 +223,12 @@ export async function saveRegister(tx: Tx, me: string, sessionId: string, conten
     entityId: sessionId,
     meta: { length: content.length, previousLength: existing?.content.length ?? 0 },
   });
+  return { version: now.toISOString() };
 }
 
 /** Schließt den Termin ab: alles bestätigt und Klassenbuch geführt. Danach nur noch Korrekturen mit Begründung. */
 export async function closeSession(tx: Tx, me: string, sessionId: string, now: Date = new Date()) {
+  await tx.select({ id: lessonSessions.id }).from(lessonSessions).where(eq(lessonSessions.id, sessionId)).for("update");
   const { s, c } = await loadSession(tx, sessionId);
   const actor = await requireInCourse(tx, me, "attendance.review", c.id);
   await requireInCourse(tx, me, "register.write", c.id);
@@ -214,10 +241,17 @@ export async function closeSession(tx: Tx, me: string, sessionId: string, now: D
   await tx.insert(auditEvents).values({ organizationId: actor.organizationId, actorMembershipId: me, action: "session.closed", entity: "lesson_session", entityId: sessionId });
 }
 
-/** Protokolliert, dass das Einwahlprotokoll ausgegeben wurde (Nachweis). */
-export async function recordExport(tx: Tx, me: string, sessionId: string) {
+/** Protokolliert die Ausgabe des Einwahlprotokolls (Nachweis). Wiederholte Aufrufe innerhalb einer Minute zählen einmal. */
+export async function recordExport(tx: Tx, me: string, sessionId: string, meta: { confirmed: number; unconfirmed: number }, now: Date = new Date()) {
   const { c } = await loadSession(tx, sessionId);
   const actor = await loadActor(tx, me);
   if (!(canInCourse(actor, "evidence.export", c.id) || canInCourse(actor, "attendance.review", c.id))) throw new NotAllowedError("evidence.export");
-  await tx.insert(auditEvents).values({ organizationId: actor.organizationId, actorMembershipId: me, action: "evidence.exported", entity: "lesson_session", entityId: sessionId });
+  const [recent] = await tx
+    .select({ id: auditEvents.id })
+    .from(auditEvents)
+    .where(and(eq(auditEvents.action, "evidence.exported"), eq(auditEvents.entityId, sessionId), eq(auditEvents.actorMembershipId, me), gte(auditEvents.createdAt, new Date(now.getTime() - 60_000))))
+    .orderBy(desc(auditEvents.createdAt))
+    .limit(1);
+  if (recent) return;
+  await tx.insert(auditEvents).values({ organizationId: actor.organizationId, actorMembershipId: me, action: "evidence.exported", entity: "lesson_session", entityId: sessionId, meta, createdAt: now });
 }

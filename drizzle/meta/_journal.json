@@ -64,6 +64,20 @@
       "when": 1794317090546,
       "tag": "0008_anmeldung_sicherheit",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794323287571,
+      "tag": "0009_unterricht_klassenbuch",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794323288350,
+      "tag": "0010_unterricht_sicherheit",
+      "breakpoints": true
     }
   ]
 }

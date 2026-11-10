@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { asSessionUser } from "@/server/context";
 import { loadRoom, NotAllowedError, recordExport, TeachingRuleError } from "@/server/teaching";
-import { fmtDate, fmtDateTime, fmtTime, MODE_DE, STATUS_DE } from "../../format";
+import { fmtDate, fmtDateTime, fmtTime, fmtTimeSec, MODE_DE, STATUS_DE } from "../../format";
 import { PrintButton } from "./print";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
     try {
       const r = await loadRoom(tx, me, id, now);
       if (!r.can.export || now < r.session.startsAt) return null;
-      await recordExport(tx, me, id); // jede Ausgabe wird festgehalten
+      await recordExport(tx, me, id, { confirmed: r.learners.filter((l) => l.reviewState === "CONFIRMED").length, unconfirmed: r.learners.filter((l) => l.reviewState !== "CONFIRMED").length }); // jede Ausgabe wird festgehalten
       return r;
     } catch (e) {
       if (e instanceof NotAllowedError || e instanceof TeachingRuleError) return null;
@@ -61,6 +61,19 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
                 ))}
               </td>
               <td>{l.reviewState === "CONFIRMED" && l.confirmedBy && l.confirmedAt ? `${l.confirmedBy}, ${fmtDateTime.format(l.confirmedAt)}` : "Vorschlag"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h2 className="sect">Rohereignisse (Ein- und Ausgang, auf die Sekunde)</h2>
+      <p className="muted">Alle aufgezeichneten Ereignisse dieses Termins, auch außerhalb der Terminzeit. Die Anwesenheit oben wird daraus berechnet und auf die Terminzeit beschränkt.</p>
+      <table className="ptable">
+        <thead><tr><th>Teilnehmende</th><th>Ereignisse</th></tr></thead>
+        <tbody>
+          {room.learners.map((l) => (
+            <tr key={l.membershipId}>
+              <td>{l.name}</td>
+              <td>{l.events.length === 0 ? "keine" : l.events.map((e, n) => <span key={n} style={{ marginRight: 14, whiteSpace: "nowrap" }}>{e.type === "JOIN" ? "ein" : "aus"} {fmtTimeSec.format(e.at)}</span>)}</td>
             </tr>
           ))}
         </tbody>

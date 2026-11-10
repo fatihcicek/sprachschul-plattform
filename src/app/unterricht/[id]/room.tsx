@@ -17,6 +17,7 @@ export type LearnerView = {
   corrections: string[];
 };
 type Result = { ok: true } | { ok: false; message: string };
+type WithVersion = { ok: true; version: string } | { ok: false; message: string };
 
 const STATUS_DE = { PRESENT: "anwesend", PARTIAL: "teilweise anwesend", ABSENT: "abwesend", EXCUSED: "entschuldigt" } as const;
 
@@ -46,7 +47,10 @@ export function Attendance({ sessionId, learners, started, over, closed, canRevi
             </button>
           )}
           {canReview && over && hasOpen && (
-            <button type="button" disabled={pending} onClick={() => run(() => confirmAttendanceAction(sessionId))}>Alle Vorschläge bestätigen</button>
+            <button type="button" disabled={pending} onClick={() => {
+              const warn = learners.some((l) => l.openEnded) ? "\n\nAchtung: Bei manchen Personen endet die letzte Einwahl ohne Abmeldung. Bitte prüfe sie vorher." : "";
+              if (window.confirm(`Alle ${learners.filter((l) => l.reviewState === "PROPOSED").length} Vorschläge bestätigen? Danach sind Änderungen nur noch mit Begründung möglich.${warn}`)) run(() => confirmAttendanceAction(sessionId));
+            }}>Alle Vorschläge bestätigen</button>
           )}
         </div>
       </div>
@@ -106,10 +110,11 @@ function LearnerRow({ sessionId, l, canEdit }: { sessionId: string; l: LearnerVi
   );
 }
 
-export function Register({ sessionId, initial, meta, editable, reason }: { sessionId: string; initial: string; meta: string | null; editable: boolean; reason: string | null }) {
+export function Register({ sessionId, initial, version, meta, editable, reason }: { sessionId: string; initial: string; version: string | null; meta: string | null; editable: boolean; reason: string | null }) {
   const { pending, error, run } = useAction();
   const [text, setText] = useState(initial);
   const [saved, setSaved] = useState(false);
+  const [basis, setBasis] = useState(version);
   return (
     <div className="card">
       <strong>Klassenbuch</strong>
@@ -120,7 +125,7 @@ export function Register({ sessionId, initial, meta, editable, reason }: { sessi
       {error && <div className="err" role="alert">{error}</div>}
       {editable && (
         <div style={{ marginTop: 12, display: "flex", gap: 12, alignItems: "center" }}>
-          <button type="button" disabled={pending || !text.trim()} onClick={() => run(async () => { const r = await saveRegisterAction(sessionId, text); setSaved(r.ok); return r; })}>Eintrag speichern</button>
+          <button type="button" disabled={pending || !text.trim()} onClick={() => run(async () => { const r: WithVersion = await saveRegisterAction(sessionId, text, basis); if (r.ok) setBasis(r.version); setSaved(r.ok); return r; })}>Eintrag speichern</button>
           {saved && <span className="muted" role="status">Gespeichert.</span>}
         </div>
       )}

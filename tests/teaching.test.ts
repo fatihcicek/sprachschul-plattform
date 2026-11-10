@@ -94,7 +94,7 @@ describe("Rechte", () => {
     await expect(run(a, (tx) => confirmAllAsActor(tx, a.otherTeacher, a.past, NOW))).rejects.toBeInstanceOf(NotAllowedError);
     await expect(run(a, (tx) => saveRegister(tx, a.otherTeacher, a.past, "x", NOW))).rejects.toBeInstanceOf(NotAllowedError);
     await expect(run(a, (tx) => closeSession(tx, a.otherTeacher, a.past, NOW))).rejects.toBeInstanceOf(NotAllowedError);
-    await expect(run(a, (tx) => recordExport(tx, a.otherTeacher, a.past))).rejects.toBeInstanceOf(NotAllowedError);
+    await expect(run(a, (tx) => recordExport(tx, a.otherTeacher, a.past, { confirmed: 0, unconfirmed: 0 }))).rejects.toBeInstanceOf(NotAllowedError);
   });
   it("Verwaltung darf ansehen, aber nicht bestätigen oder ins Klassenbuch schreiben", async () => {
     const room = await run(a, (tx) => loadRoom(tx, a.staff, a.past, NOW));
@@ -135,8 +135,13 @@ describe("Ablauf eines Termins", () => {
     await expect(run(a, (tx) => saveRegister(tx, a.teacher, a.past, "   ", NOW))).rejects.toBeInstanceOf(TeachingRuleError);
     await expect(run(a, (tx) => saveRegister(tx, a.teacher, a.past, "x".repeat(REGISTER_MAX + 1), NOW))).rejects.toBeInstanceOf(TeachingRuleError);
     await expect(run(a, (tx) => saveRegister(tx, a.teacher, a.future, "Thema", NOW))).rejects.toBeInstanceOf(TeachingRuleError);
-    await run(a, (tx) => saveRegister(tx, a.teacher, a.past, "Konjunktiv II", NOW));
-    await run(a, (tx) => saveRegister(tx, a.teacher, a.past, "Konjunktiv II, Übungen", NOW));
+    const v1 = await run(a, (tx) => saveRegister(tx, a.teacher, a.past, "Konjunktiv II", NOW));
+    // Wer ohne aktuelle Version speichert (zweites Fenster), wird nicht still überschrieben.
+    await expect(run(a, (tx) => saveRegister(tx, a.teacher, a.past, "Fremd", d("2026-11-10T20:05:00Z"), null))).rejects.toThrow(/inzwischen geändert/);
+    await expect(run(a, (tx) => saveRegister(tx, a.teacher, a.past, "Fremd", d("2026-11-10T20:05:00Z"), "2020-01-01T00:00:00.000Z"))).rejects.toThrow(/inzwischen geändert/);
+    await run(a, (tx) => saveRegister(tx, a.teacher, a.past, "Konjunktiv II, Übungen", d("2026-11-10T20:05:00Z"), v1.version));
+    const versions = await run(a, (tx) => tx.select().from(s.classRegisterVersions).where(eq(s.classRegisterVersions.sessionId, a.past)));
+    expect(versions.map((v) => v.content).sort()).toEqual(["Konjunktiv II", "Konjunktiv II, Übungen"]);
     const room = await run(a, (tx) => loadRoom(tx, a.teacher, a.past, NOW));
     expect(room.register).toMatchObject({ content: "Konjunktiv II, Übungen", author: "lehrkraft alpha" });
     const ev = await run(a, (tx) => tx.select().from(s.auditEvents).where(eq(s.auditEvents.entityId, a.past)));
@@ -156,6 +161,13 @@ describe("Ablauf eines Termins", () => {
     expect(l2.corrections).toMatchObject([{ fromStatus: "ABSENT", toStatus: "EXCUSED", reason: "Arztbesuch, Attest liegt vor", by: "lehrkraft alpha" }]);
     expect((await run(a, (tx) => listMySessions(tx, a.teacher, NOW))).find((x) => x.sessionId === a.past)!.status).toBe("CLOSED");
   });
+  it("Datenbank schützt bestätigte Anwesenheit und gesperrtes Klassenbuch auch gegen direkte Änderungen", async () => {
+    const room = await run(a, (tx) => loadRoom(tx, a.teacher, a.past, NOW));
+    const rec = room.learners[0]!.recordId!;
+    await expect(run(a, (tx) => tx.update(s.attendanceRecords).set({ status: "EXCUSED" }).where(eq(s.attendanceRecords.id, rec)))).rejects.toThrow();
+    await expect(run(a, (tx) => tx.update(s.classRegisterEntries).set({ content: "Direkt" }).where(eq(s.classRegisterEntries.sessionId, a.past)))).rejects.toThrow();
+    await expect(run(a, (tx) => tx.delete(s.classRegisterVersions).where(eq(s.classRegisterVersions.sessionId, a.past)))).rejects.toThrow();
+  });
   it("Abschließen geht nicht, solange etwas unbestätigt ist", async () => {
     const c = await school("gamma");
     await run(c, (tx) => saveRegister(tx, c.teacher, c.past, "Thema", NOW));
@@ -164,8 +176,8 @@ describe("Ablauf eines Termins", () => {
     await expect(run(c, (tx) => closeSession(tx, c.teacher, c.past, d("2026-11-10T18:00:00Z")))).rejects.toThrow(/läuft noch/);
   });
   it("Ausgabe des Einwahlprotokolls wird protokolliert", async () => {
-    await run(a, (tx) => recordExport(tx, a.teacher, a.past));
-    await run(a, (tx) => recordExport(tx, a.staff, a.past));
+    await run(a, (tx) => recordExport(tx, a.teacher, a.past, { confirmed: 2, unconfirmed: 0 }));
+    await run(a, (tx) => recordExport(tx, a.staff, a.past, { confirmed: 2, unconfirmed: 0 }));
     const ev = await run(a, (tx) => tx.select().from(s.auditEvents).where(eq(s.auditEvents.action, "evidence.exported")));
     expect(ev).toHaveLength(2);
   });

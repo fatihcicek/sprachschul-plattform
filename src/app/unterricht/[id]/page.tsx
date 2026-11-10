@@ -55,6 +55,7 @@ export default async function Kursraum({ params }: { params: Promise<{ id: strin
       <Register
         sessionId={room.session.id}
         initial={room.register?.content ?? ""}
+        version={room.register ? room.register.updatedAt.toISOString() : null}
         meta={room.register ? `Zuletzt bearbeitet von ${room.register.author}, ${fmtDateTime.format(room.register.updatedAt)}` : null}
         editable={room.can.write && started && !closed}
         reason={!room.can.write ? "Nur die Lehrkraft des Kurses trägt das Klassenbuch ein." : !started ? "Das Klassenbuch ist ab Beginn des Termins möglich." : closed ? "Der Termin ist abgeschlossen, das Klassenbuch ist gesperrt." : null}
@@ -64,7 +65,7 @@ export default async function Kursraum({ params }: { params: Promise<{ id: strin
         <div className="card">
           <strong>Einwahlprotokoll</strong>
           <p className="muted">Zeiten, zu denen die Teilnehmenden im Unterricht waren (Ein- und Ausgang), mit Anwesenheit und Bestätigung. Zum Drucken oder Speichern als PDF.</p>
-          <Link href={`/unterricht/${room.session.id}/protokoll`} className="btn">Einwahlprotokoll öffnen</Link>
+          <Link href={`/unterricht/${room.session.id}/protokoll`} prefetch={false} className="btn">Einwahlprotokoll öffnen</Link>
         </div>
       )}
     </Shell>
