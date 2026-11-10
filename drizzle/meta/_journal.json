@@ -43,6 +43,13 @@
       "when": 1794304930922,
       "tag": "0005_personen_je_schule",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794305105374,
+      "tag": "0006_kurs_anlegen",
+      "breakpoints": true
     }
   ]
 }

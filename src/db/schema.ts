@@ -92,6 +92,8 @@ export const courses = pgTable(
     name: text("name").notNull(),
     category: text("category").notNull(), // z. B. "BSK B2"; der Kursartenkatalog folgt später
     bamfFunded: boolean("bamf_funded").notNull().default(false),
+    bamfCourseNumber: text("bamf_course_number"), // Kursnummer des BAMF, z. B. "2026-06552"
+    mode: deliveryMode("mode").notNull().default("VIRTUAL"),
     status: courseStatus("status").notNull().default("DRAFT"),
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
@@ -110,6 +112,7 @@ export const enrollments = pgTable(
     membershipId: uuid("membership_id").notNull(),
     startsOn: date("starts_on").notNull(),
     endsOn: date("ends_on"),
+    bamfFunded: boolean("bamf_funded").notNull().default(false), // Teilnahme vom BAMF gefördert
     createdAt: createdAt(),
   },
   (t) => [

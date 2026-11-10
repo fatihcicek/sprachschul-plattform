@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { clearSession, loginAs } from "@/server/session";
 import { asSessionUser } from "@/server/context";
 import * as svc from "@/server/assignments";
+import * as courseSvc from "@/server/courses";
 
 export async function login(formData: FormData) {
   await loginAs(String(formData.get("membershipId") ?? ""));
@@ -54,4 +55,20 @@ export async function createAssignmentAction(formData: FormData) {
 export async function feedbackAction(submissionId: string, formData: FormData) {
   await asSessionUser((tx, me) => svc.giveFeedback(tx, me, submissionId, String(formData.get("comment") ?? "")));
   redirect("/lehrkraft");
+}
+
+// ---- Verwaltung: Kurs anlegen ----
+
+
+export type CreateCourseResult = { ok: true; courseId: string; sessions: number; learners: number } | { ok: false; message: string };
+
+export async function createCourseAction(input: unknown): Promise<CreateCourseResult> {
+  try {
+    const r = await asSessionUser((tx, me) => courseSvc.createCourse(tx, me, input));
+    revalidatePath("/verwaltung");
+    return { ok: true, courseId: r.courseId, sessions: r.sessions, learners: r.learners };
+  } catch (e) {
+    if (e instanceof courseSvc.CourseInputError || e instanceof svc.NotAllowedError) return { ok: false, message: e.message };
+    throw e;
+  }
 }
