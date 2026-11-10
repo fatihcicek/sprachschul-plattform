@@ -59,3 +59,33 @@ export function canManageAccountOf(actorRole: Role, targetRole: Role): boolean {
   if (actorRole === "ADMIN") return true;
   return targetRole === "LEARNER";
 }
+
+// ---- Zustand der Schule: Testzeit, Freischaltung, Sperre ----
+
+export type OrganizationStatus = "TRIAL" | "ACTIVE" | "SUSPENDED";
+
+/**
+ * FULL: alles wie gewohnt. READ_ONLY: abgelaufene Testzeit, Daten bleiben sichtbar, nichts Neues.
+ * BLOCKED: gesperrt, niemand kommt hinein.
+ */
+export type AccessMode = "FULL" | "READ_ONLY" | "BLOCKED";
+export type OrganizationAccess = { mode: AccessMode; /** Volle Resttage der Testzeit (letzter Tag = 1), sonst null. */ trialDaysLeft: number | null };
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Die eine Stelle, die über Testzeit und Sperre entscheidet. Die Testzeit gilt bis einschließlich
+ * trialEndsAt; ab der nächsten Millisekunde ist die Schule schreibgeschützt. Fehlt bei TRIAL das
+ * Ende (darf die Datenbank nicht zulassen), gilt vorsichtshalber schreibgeschützt.
+ */
+export function organizationAccess(org: { status: OrganizationStatus; trialEndsAt: Date | null }, now: Date): OrganizationAccess {
+  if (org.status === "SUSPENDED") return { mode: "BLOCKED", trialDaysLeft: null };
+  if (org.status === "ACTIVE") return { mode: "FULL", trialDaysLeft: null };
+  if (!org.trialEndsAt) return { mode: "READ_ONLY", trialDaysLeft: 0 };
+  const left = org.trialEndsAt.getTime() - now.getTime();
+  if (left < 0) return { mode: "READ_ONLY", trialDaysLeft: 0 };
+  return { mode: "FULL", trialDaysLeft: Math.max(1, Math.ceil(left / DAY_MS)) };
+}
+
+/** Darf in dieser Schule etwas geändert werden? */
+export const canWriteInOrganization = (access: OrganizationAccess): boolean => access.mode === "FULL";

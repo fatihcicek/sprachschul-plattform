@@ -19,10 +19,11 @@ import {
   verifyPassword,
 } from "@/domain/password";
 import { loadActor, NotAllowedError } from "@/server/actor";
+import { loadAccess } from "@/server/access";
 
 export type LoginResult =
   | { ok: true; membershipId: string; organizationId: string; passwordVersion: number }
-  | { ok: false; reason: "invalid" | "locked" };
+  | { ok: false; reason: "invalid" | "locked" | "suspended" };
 
 const minutesAgo = (now: Date, m: number) => new Date(now.getTime() - m * 60_000);
 const CONTROL = /[\u0000-\u001f\u007f]/;
@@ -78,6 +79,9 @@ export async function authenticate(db: Db, slugRaw: string, emailRaw: string, pa
   const { row, attemptId } = step;
   const passwordOk = await verifyPassword(password, row?.hash ?? (await dummyHash()));
   if (!passwordOk || !row?.hash || !row.active) return INVALID;
+
+  // Erst nach richtigem Passwort sagen wir, dass die Schule gesperrt ist: So verrät die Meldung nichts über fremde Schulen.
+  if ((await withOrganization(db, org.id, (tx) => loadAccess(tx, now))).mode === "BLOCKED") return { ok: false, reason: "suspended" };
 
   await withOrganization(db, org.id, async (tx) => {
     await tx.update(loginAttempts).set({ succeeded: true }).where(eq(loginAttempts.id, attemptId));

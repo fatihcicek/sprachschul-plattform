@@ -92,6 +92,13 @@
       "when": 1794342014866,
       "tag": "0012_registrierung_sicherheit",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794344147093,
+      "tag": "0013_testzeit_schutz",
+      "breakpoints": true
     }
   ]
 }
