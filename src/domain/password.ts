@@ -67,7 +67,18 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 /** Hash, gegen den bei unbekannter Person geprüft wird, damit die Antwortzeit nichts verrät. */
 let dummy: Promise<string> | undefined;
-export const dummyHash = () => (dummy ??= hashPassword("kein-echtes-konto"));
+export function dummyHash(): Promise<string> {
+  // Einmal berechnet und gemerkt, aber nie ein Fehler: scheitert die Berechnung, wird sie beim nächsten Mal neu versucht.
+  dummy ??= (async () => {
+    const salt = randomBytes(16);
+    const key = await scryptAsync("kein-echtes-konto", salt, SCRYPT.keylen, SCRYPT);
+    return ["scrypt", SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString("base64url"), key.toString("base64url")].join("$");
+  })().catch((e) => {
+    dummy = undefined;
+    throw e;
+  });
+  return dummy;
+}
 
 const COMMON = new Set(
   (
