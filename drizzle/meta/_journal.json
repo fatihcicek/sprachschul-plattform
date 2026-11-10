@@ -78,6 +78,20 @@
       "when": 1794323288350,
       "tag": "0010_unterricht_sicherheit",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794341987968,
+      "tag": "0011_registrierung_tabellen",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794342014866,
+      "tag": "0012_registrierung_sicherheit",
+      "breakpoints": true
     }
   ]
 }

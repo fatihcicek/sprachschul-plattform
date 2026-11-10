@@ -119,7 +119,7 @@ export async function inviteAsActor(tx: Tx, actorMembershipId: string, targetMem
   return createInvitation(tx, actor.organizationId, targetMembershipId, actor.membershipId, now);
 }
 
-export type RedeemResult = { ok: true } | { ok: false; reason: "invalid" | "weak"; message: string };
+export type RedeemResult = { ok: true; slug: string } | { ok: false; reason: "invalid" | "weak"; message: string };
 
 /** Prüft nur, ob ein Link noch gilt (für die Anzeige der Seite). Verbraucht nichts. */
 export async function invitationIsValid(db: Db, token: string, now: Date = new Date()): Promise<{ name: string; email: string } | null> {
@@ -177,7 +177,8 @@ export async function redeemInvitation(db: Db, token: string, password: string, 
       entity: "membership",
       entityId: open.membershipId,
     });
-    return { ok: true } as const;
+    const [org] = await tx.select({ slug: organizations.slug }).from(organizations);
+    return { ok: true, slug: org!.slug } as const;
   });
 }
 
