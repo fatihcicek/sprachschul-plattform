@@ -21,12 +21,11 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: kurswerk
-          POSTGRES_PASSWORD: kurswerk
-          POSTGRES_DB: kurswerk
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U kurswerk" --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://kurswerk:kurswerk@localhost:5432/kurswerk
     steps:
@@ -36,6 +35,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Die Anwendung verbindet sich wie im Betrieb ohne Superuser-Rechte,
+      # sonst würde die Zeilensicherheit umgangen.
+      - name: Datenbankrolle ohne Superuser anlegen
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE ROLE kurswerk LOGIN CREATEDB PASSWORD 'kurswerk'"
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE kurswerk OWNER kurswerk"
       - run: npx tsc --noEmit
       - run: npx vitest run
       - run: ./scripts/bundle.sh
