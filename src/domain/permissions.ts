@@ -95,3 +95,14 @@ export function organizationAccess(org: { status: OrganizationStatus; trialEndsA
 
 /** Darf in dieser Schule etwas geändert werden? */
 export const canWriteInOrganization = (access: OrganizationAccess): boolean => access.mode === "FULL";
+
+/**
+ * Darf das Einwahlprotokoll (BAMF-Nachweis) ausgegeben werden? Mit BAMF-Funktionen der Schule ja; ohne sie nur für Kurse,
+ * die schon BAMF-Bezug haben. Der Nachweis eines geführten BAMF-Kurses muss auch nach dem Ausschalten abrufbar bleiben
+ * (Aufbewahrungspflicht), sonst ließe sich ein Nachweis durch Umschalten wegklicken.
+ */
+export const evidenceAvailable = (schoolBamf: boolean, course: { bamfCourseNumber: string | null; bamfFunded: boolean }): boolean =>
+  schoolBamf || Boolean(course.bamfCourseNumber) || course.bamfFunded;
+
+/** Prüft die Option so, dass nur ausdrückliches false die BAMF-Hinweise abschaltet. */
+export const bamfHintsOn = (options: { bamf?: boolean } | undefined): boolean => options?.bamf !== false;

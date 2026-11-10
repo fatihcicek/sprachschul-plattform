@@ -15,7 +15,7 @@ const WEEKDAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 7];
 const monthFmt = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
 const dayFmt = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" });
 
-export function CourseWizard({ teachers, learners }: { teachers: Person[]; learners: Person[] }) {
+export function CourseWizard({ teachers, learners, bamfEnabled }: { teachers: Person[]; learners: Person[]; bamfEnabled: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -33,7 +33,7 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
   const [importReport, setImportReport] = useState<{ summary: string; problems: string[] } | null>(null);
   const [pending, start] = useTransition();
 
-  const check = useMemo(() => checkPlan(plan), [plan]);
+  const check = useMemo(() => checkPlan(plan, { bamf: bamfEnabled }), [plan, bamfEnabled]);
   const dates = useMemo(() => (check.errors.length ? [] : expandPlan(plan, [])), [plan, check]);
   const active = dates.filter((d) => !excluded.includes(d.day));
   const filledNew = newLearners.filter((n) => n.firstName.trim() || n.lastName.trim() || n.email.trim());
@@ -82,21 +82,21 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
       }
       if (known) {
         if (!(known.membershipId in nextPicked)) total++;
-        nextPicked[known.membershipId] = hasBamfColumn ? p.bamfFunded : Boolean(nextPicked[known.membershipId]);
+        nextPicked[known.membershipId] = bamfEnabled && hasBamfColumn ? p.bamfFunded : Boolean(nextPicked[known.membershipId]);
         existing++;
         if (norm(known.firstName) !== norm(p.firstName) || norm(known.lastName) !== norm(p.lastName))
           notes.push({ line: p.line, text: `Zeile ${p.line}: ${p.email} ist an der Schule als ${known.firstName} ${known.lastName} geführt (in der Tabelle: ${p.firstName} ${p.lastName})` });
       } else if (teacherEmails.has(p.email)) notes.push({ line: p.line, text: `Zeile ${p.line}: ${p.email} gehört zu einer Lehrkraft` });
       else if (already.has(p.email)) notes.push({ line: p.line, text: `Zeile ${p.line}: ${p.email} steht schon in der Liste` });
       else {
-        added.push({ key: key++, firstName: p.firstName, lastName: p.lastName, email: p.email, bamfFunded: p.bamfFunded });
+        added.push({ key: key++, firstName: p.firstName, lastName: p.lastName, email: p.email, bamfFunded: bamfEnabled && p.bamfFunded });
         already.add(p.email);
         total++;
       }
     }
     setPicked(nextPicked);
     setNewLearners([...keptNew, ...added]);
-    if (people.length && !hasBamfColumn) notes.push({ line: 0, text: "Keine BAMF-Spalte gefunden: BAMF bitte bei Bedarf unten ankreuzen." });
+    if (bamfEnabled && people.length && !hasBamfColumn) notes.push({ line: 0, text: "Keine BAMF-Spalte gefunden: BAMF bitte bei Bedarf unten ankreuzen." });
     setNextKey(key);
     setImportReport({
       summary: `${existing + added.length} übernommen: ${existing} schon an der Schule (ausgewählt), ${added.length} neu.`,
@@ -122,12 +122,12 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
       const r = await createCourseAction({
         name,
         category,
-        bamfCourseNumber: bamfNo,
+        bamfCourseNumber: bamfEnabled ? bamfNo : "",
         plan,
         excludedDays: excluded,
         teacherIds,
-        learners: Object.entries(picked).map(([membershipId, bamfFunded]) => ({ membershipId, bamfFunded })),
-        newLearners: filledNew.map(({ firstName, lastName, email, bamfFunded }) => ({ firstName, lastName, email, bamfFunded })),
+        learners: Object.entries(picked).map(([membershipId, bamfFunded]) => ({ membershipId, bamfFunded: bamfEnabled && bamfFunded })),
+        newLearners: filledNew.map(({ firstName, lastName, email, bamfFunded }) => ({ firstName, lastName, email, bamfFunded: bamfEnabled && bamfFunded })),
       });
       if (r.ok) router.push(`/verwaltung?neu=${r.courseId}`);
       else setMessage(r.message);
@@ -162,10 +162,12 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
                 <input id="category" list="course-types" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="frei wählbar" maxLength={200} />
                 <datalist id="course-types">{COURSE_TYPE_SUGGESTIONS.map((c) => <option key={c} value={c} />)}</datalist>
               </div>
-              <div>
-                <label htmlFor="bamf">BAMF-Kursnummer (optional)</label>
-                <input id="bamf" value={bamfNo} onChange={(e) => setBamfNo(e.target.value)} placeholder="z. B. 2026-06552" maxLength={40} />
-              </div>
+              {bamfEnabled && (
+                <div>
+                  <label htmlFor="bamf">BAMF-Kursnummer (optional)</label>
+                  <input id="bamf" value={bamfNo} onChange={(e) => setBamfNo(e.target.value)} placeholder="z. B. 2026-06552" maxLength={40} />
+                </div>
+              )}
             </div>
             <div className="grid3">
               <div>
@@ -272,7 +274,7 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
                 <div key={l.membershipId} className="person">
                   <input type="checkbox" id={`l-${l.membershipId}`} checked={on} onChange={() => setPicked((x) => { const n = { ...x }; if (on) delete n[l.membershipId]; else n[l.membershipId] = false; return n; })} />
                   <label htmlFor={`l-${l.membershipId}`} className="grow" style={{ margin: 0, fontSize: 16 }}>{l.firstName} {l.lastName} <span className="muted">· {l.email}</span></label>
-                  {on && (
+                  {on && bamfEnabled && (
                     <label className="muted" style={{ margin: 0, display: "flex", gap: 6, alignItems: "center" }}>
                       <input type="checkbox" checked={picked[l.membershipId]} onChange={(e) => setPicked((x) => ({ ...x, [l.membershipId]: e.target.checked }))} style={{ width: 16, height: 16 }} /> BAMF
                     </label>
@@ -286,7 +288,7 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
               ) : (
                 <>
                   <label htmlFor="import-text" style={{ marginTop: 0 }}>
-                    Zeilen aus Excel hier einfügen <span className="muted">oder eine CSV-Datei wählen. Spalten: Vorname, Nachname, E-Mail, BAMF (ja/nein, optional).</span>
+                    Zeilen aus Excel hier einfügen <span className="muted">oder eine CSV-Datei wählen. Spalten: Vorname, Nachname, E-Mail{bamfEnabled ? ", BAMF (ja/nein, optional)" : ""}.</span>
                   </label>
                   <textarea id="import-text" value={importText} onChange={(e) => setImportText(e.target.value)} style={{ minHeight: 120 }} placeholder={"Vorname\tNachname\tE-Mail\tBAMF"} />
                   <div className="row" style={{ marginTop: 8, flexWrap: "wrap", gap: 8 }}>
@@ -335,9 +337,9 @@ export function CourseWizard({ teachers, learners }: { teachers: Person[]; learn
                   <input aria-label="Vorname" placeholder="Vorname" value={n.firstName} maxLength={200} onChange={(e) => upd("firstName", e.target.value)} style={{ flex: "1 1 140px" }} />
                   <input aria-label="Nachname" placeholder="Nachname" value={n.lastName} maxLength={200} onChange={(e) => upd("lastName", e.target.value)} style={{ flex: "1 1 140px" }} />
                   <input aria-label="E-Mail" type="email" placeholder="E-Mail" value={n.email} maxLength={254} onChange={(e) => upd("email", e.target.value)} style={{ flex: "2 1 200px" }} />
-                  <label className="muted" style={{ margin: 0, display: "flex", gap: 6, alignItems: "center" }}>
+                  {bamfEnabled && <label className="muted" style={{ margin: 0, display: "flex", gap: 6, alignItems: "center" }}>
                     <input type="checkbox" checked={n.bamfFunded} onChange={(e) => upd("bamfFunded", e.target.checked)} style={{ width: 16, height: 16 }} /> BAMF
-                  </label>
+                  </label>}
                   <button type="button" className="ghost" onClick={() => setNewLearners((x) => x.filter((y) => y.key !== n.key))}>Entfernen</button>
                   {rowProblem(n) && <span className="rowerr" role="alert">{rowProblem(n)}</span>}
                 </div>

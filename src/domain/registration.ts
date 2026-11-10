@@ -15,7 +15,7 @@ const CONTROL = /[\u0000-\u001f\u007f\u2028\u2029\u200b-\u200f\u202a-\u202e\u206
 // Zeichen, die in Namen nichts zu suchen haben, aber in Mails, Adressen oder HTML Ärger machen könnten.
 const MARKUP = /[<>]/;
 
-export type RegistrationInput = { schoolName: string; firstName: string; lastName: string; email: string };
+export type RegistrationInput = { schoolName: string; firstName: string; lastName: string; email: string; bamfEnabled: boolean };
 export type RegistrationProblem = { field: keyof RegistrationInput | "terms"; message: string };
 
 const clean = (v: unknown) => (typeof v === "string" ? v.normalize("NFC").replace(/\s+/g, " ").trim() : "");
@@ -38,7 +38,8 @@ export function parseRegistration(
   if (!firstName) return bad("firstName", "Bitte gib den Vornamen ein.");
   if (!lastName) return bad("lastName", "Bitte gib den Nachnamen ein.");
   if (!isValidAddress(email)) return bad("email", "Bitte gib eine gültige E-Mail-Adresse ein.");
-  return { ok: true, value: { schoolName, firstName, lastName, email } };
+  const bamfEnabled = raw.bamf === "on" || raw.bamf === true;
+  return { ok: true, value: { schoolName, firstName, lastName, email, bamfEnabled } };
 }
 
 /** Kürzel für den Login: aus dem Namen, nur a–z, 0–9 und Bindestrich, mit zufälligem Ende gegen Kollisionen und Erraten. */

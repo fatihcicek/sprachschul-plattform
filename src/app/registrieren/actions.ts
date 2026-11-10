@@ -11,7 +11,7 @@ import { registrationBaseUrl, registrationOpen, showLinkOnPage } from "@/server/
 export type RegisterState = { error?: string; field?: string; done?: true; link?: string; values?: Record<string, string> } | undefined;
 
 /** Eingaben nach einem Fehler zurückgeben, damit das Formular nicht leer wird. */
-const keep = (f: FormData) => Object.fromEntries(["schoolName", "firstName", "lastName", "email"].map((k) => [k, String(f.get(k) ?? "")]).concat([["terms", f.get("terms") === "on" ? "on" : ""]]));
+const keep = (f: FormData) => Object.fromEntries(["schoolName", "firstName", "lastName", "email"].map((k) => [k, String(f.get(k) ?? "")]).concat([["terms", f.get("terms") === "on" ? "on" : ""], ["bamf", f.get("bamf") === "on" ? "on" : ""]]));
 
 async function clientIp(): Promise<string> {
   const h = await headers();

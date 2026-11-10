@@ -52,6 +52,8 @@ export const organizations = pgTable("organizations", {
   // Nachweis der Zustimmung zu den Nutzungsbedingungen bei der Registrierung.
   termsAcceptedAt: ts("terms_accepted_at"),
   termsVersion: text("terms_version"),
+  // BAMF-Funktionen (Kursnummer, Förderung, Einwahlprotokoll, Online-Regeln) sind ein optionaler Teil. Bestehende Schulen behalten sie.
+  bamfEnabled: boolean("bamf_enabled").notNull().default(true),
   createdAt: createdAt(),
 });
 
@@ -66,6 +68,8 @@ export const registrations = pgTable("registrations", {
   email: text("email").notNull(),
   termsVersion: text("terms_version").notNull(),
   termsAcceptedAt: ts("terms_accepted_at").notNull(),
+  // Gewünschte Einstellung der neuen Schule: bietet sie BAMF-Kurse an?
+  bamfEnabled: boolean("bamf_enabled").notNull().default(false),
   expiresAt: ts("expires_at").notNull(),
   usedAt: ts("used_at"),
   createdAt: createdAt(),

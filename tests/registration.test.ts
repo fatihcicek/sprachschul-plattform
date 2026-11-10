@@ -31,11 +31,12 @@ const BASE = "https://kurswerk.test";
 const T0 = new Date("2026-10-01T10:00:00Z");
 const minutes = (m: number) => new Date(T0.getTime() + m * 60_000);
 
-const input = (over: Partial<{ schoolName: string; firstName: string; lastName: string; email: string }> = {}) => ({
+const input = (over: Partial<{ schoolName: string; firstName: string; lastName: string; email: string; bamfEnabled: boolean }> = {}) => ({
   schoolName: "Sprachschule Beispiel",
   firstName: "Sabine",
   lastName: "Brandt",
   email: `leitung-${randomUUID().slice(0, 8)}@beispielschule.test`,
+  bamfEnabled: false,
   ...over,
 });
 const tokenFrom = (link: string) => link.split("/").pop()!;
@@ -68,7 +69,9 @@ afterAll(async () => {
 describe("Regeln ohne Datenbank", () => {
   it("prüft und bereinigt die Angaben", () => {
     const r = parseRegistration({ schoolName: "  Sprachschule   Müller ", firstName: " Eva", lastName: "Müller ", email: " EVA@Mueller.DE " }, isValidAddress);
-    expect(r).toEqual({ ok: true, value: { schoolName: "Sprachschule Müller", firstName: "Eva", lastName: "Müller", email: "eva@mueller.de" } });
+    expect(r).toEqual({ ok: true, value: { schoolName: "Sprachschule Müller", firstName: "Eva", lastName: "Müller", email: "eva@mueller.de", bamfEnabled: false } });
+    const withBamf = parseRegistration({ schoolName: "Schule", firstName: "Eva", lastName: "Müller", email: "eva@mueller.de", bamf: "on" }, isValidAddress);
+    expect(withBamf.ok && withBamf.value.bamfEnabled).toBe(true);
   });
   it("lehnt unbrauchbare Angaben ab", () => {
     const base = { schoolName: "Schule", firstName: "Eva", lastName: "Müller", email: "eva@mueller.de" };
