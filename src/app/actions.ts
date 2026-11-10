@@ -196,8 +196,9 @@ export async function closeSessionAction(sessionId: string): Promise<RoomResult>
 // ---- Verwaltung: Einstellungen ----
 
 export async function setBamfAction(enabled: boolean): Promise<Result> {
+  if (typeof enabled !== "boolean") return { ok: false, message: "Ungültige Angabe." };
   try {
-    await asSessionUser((tx, me) => setBamfEnabled(tx, me, enabled === true));
+    await asSessionUser((tx, me) => setBamfEnabled(tx, me, enabled));
     revalidatePath("/verwaltung/einstellungen");
     revalidatePath("/verwaltung");
     return { ok: true };

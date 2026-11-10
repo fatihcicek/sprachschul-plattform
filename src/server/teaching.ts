@@ -19,7 +19,7 @@ import {
   users,
 } from "@/db/schema";
 import { computePresence, type AttendanceStatus, type Interval } from "@/domain/attendance";
-import { canInCourse, type Permission } from "@/domain/permissions";
+import { canInCourse, evidenceAvailable, type Permission } from "@/domain/permissions";
 import { loadBamfEnabled } from "@/server/features";
 import { localDay } from "@/domain/schedule";
 import { loadActor, NotAllowedError, requireInCourse } from "@/server/actor";
@@ -161,8 +161,8 @@ export async function loadRoom(tx: Tx, me: string, sessionId: string, now: Date 
       review: canInCourse(actor, "attendance.review", c.id),
       correct: canInCourse(actor, "attendance.correct", c.id),
       write: canInCourse(actor, "register.write", c.id),
-      // Das Einwahlprotokoll ist ein BAMF-Nachweis: ohne BAMF-Funktionen gibt es ihn nicht.
-      export: (org?.bamf ?? true) && (canInCourse(actor, "evidence.export", c.id) || canInCourse(actor, "attendance.review", c.id)),
+      // Das Einwahlprotokoll ist ein BAMF-Nachweis: ohne BAMF-Funktionen nur noch für Kurse mit BAMF-Bezug.
+      export: evidenceAvailable(org?.bamf ?? true, c) && (canInCourse(actor, "evidence.export", c.id) || canInCourse(actor, "attendance.review", c.id)),
     },
   };
 }
@@ -248,7 +248,7 @@ export async function recordExport(tx: Tx, me: string, sessionId: string, meta: 
   const { c } = await loadSession(tx, sessionId);
   const actor = await loadActor(tx, me);
   if (!(canInCourse(actor, "evidence.export", c.id) || canInCourse(actor, "attendance.review", c.id))) throw new NotAllowedError("evidence.export");
-  if (!(await loadBamfEnabled(tx))) throw new NotAllowedError("evidence.export");
+  if (!evidenceAvailable(await loadBamfEnabled(tx), c)) throw new NotAllowedError("evidence.export");
   const [recent] = await tx
     .select({ id: auditEvents.id })
     .from(auditEvents)

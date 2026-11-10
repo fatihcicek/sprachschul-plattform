@@ -5,6 +5,7 @@ import { can } from "@/domain/permissions";
 import { ADMIN_NAV, Shell } from "@/app/shell";
 import { asSessionUser } from "@/server/context";
 import { loadActor } from "@/server/actor";
+import { getCurrentAccess } from "@/server/current-access";
 import { loadBamfEnabled } from "@/server/features";
 import { BamfSwitch } from "./switch";
 
@@ -19,10 +20,11 @@ export default async function Einstellungen() {
     return { name: `${p!.f} ${p!.l}`, bamf: await loadBamfEnabled(tx), canChange: can(actor.role, "organization.manage") };
   });
   if (!data) redirect("/");
+  const readOnly = (await getCurrentAccess())?.access.mode === "READ_ONLY";
   return (
     <Shell name={data.name} home="/verwaltung" nav={ADMIN_NAV}>
       <h1>Einstellungen</h1>
-      <BamfSwitch enabled={data.bamf} canChange={data.canChange} />
+      <BamfSwitch enabled={data.bamf} canChange={data.canChange} readOnly={readOnly} />
     </Shell>
   );
 }

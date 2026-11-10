@@ -6,13 +6,16 @@ import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, type Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDb, withOrganization, type Db, type Tx } from "@/db/client";
+import { createDb, withOrganization, withRegistrationAccess, type Db, type Tx } from "@/db/client";
 import * as s from "@/db/schema";
 import { createPerson } from "@/server/people";
 import { NotAllowedError } from "@/server/actor";
 import { CourseInputError, createCourse, type CreateCourseInput } from "@/server/courses";
 import { loadBamfEnabled, setBamfEnabled } from "@/server/features";
 import { checkPlan, type WeeklyPlan } from "@/domain/course-plan";
+import { evidenceAvailable } from "@/domain/permissions";
+import { enforceAccess, isReadOnlyViolation } from "@/server/access";
+import { sql } from "drizzle-orm";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 const baseUrl = process.env.DATABASE_URL;
@@ -126,5 +129,48 @@ describe("Hinweis zu Online-UE nur mit BAMF", () => {
     expect(checkPlan(plan).warnings.join(" ")).toMatch(/UE pro Tag/);
     expect(checkPlan(plan, { bamf: false }).warnings.join(" ")).not.toMatch(/UE pro Tag/);
     expect(checkPlan(plan, { bamf: false }).errors).toEqual([]);
+  });
+});
+
+describe("Nachweis (Einwahlprotokoll) und BAMF-Schalter", () => {
+  it("mit BAMF der Schule immer, ohne nur für Kurse mit BAMF-Bezug", () => {
+    expect(evidenceAvailable(true, { bamfCourseNumber: null, bamfFunded: false })).toBe(true);
+    expect(evidenceAvailable(false, { bamfCourseNumber: null, bamfFunded: false })).toBe(false);
+    expect(evidenceAvailable(false, { bamfCourseNumber: "2026-06552", bamfFunded: false })).toBe(true);
+    expect(evidenceAvailable(false, { bamfCourseNumber: null, bamfFunded: true })).toBe(true);
+    expect(evidenceAvailable(false, { bamfCourseNumber: "", bamfFunded: false })).toBe(false);
+  });
+});
+
+describe("Schalter: Mandantentrennung, Nur-lesen, Trigger", () => {
+  it("ein Update ohne WHERE aus Schule B ändert Schule A nicht", async () => {
+    await run(a, (tx) => setBamfEnabled(tx, a.admin, true));
+    await run(b, (tx) => tx.execute(sql`update organizations set bamf_enabled = false`));
+    expect(await run(b, (tx) => loadBamfEnabled(tx))).toBe(false);
+    expect(await run(a, (tx) => loadBamfEnabled(tx))).toBe(true);
+    await run(b, (tx) => setBamfEnabled(tx, b.admin, true));
+  });
+
+  it("bei abgelaufener Testzeit lehnt die Datenbank das Umschalten ab", async () => {
+    const id = randomUUID();
+    const admin = await withOrganization(db, id, async (tx) => {
+      await tx.insert(s.organizations).values({ id, name: "Abgelaufen", slug: `abgelaufen-${id.slice(0, 6)}`, status: "TRIAL", trialEndsAt: new Date("2026-10-01T00:00:00Z") });
+      return (await createPerson(tx, id, { email: `l@${id.slice(0, 6)}.test`, firstName: "L", lastName: "L", role: "ADMIN" })).membershipId;
+    });
+    const err = await withOrganization(db, id, async (tx) => {
+      await enforceAccess(tx, new Date("2026-11-01T00:00:00Z"));
+      await setBamfEnabled(tx, admin, false);
+    }).catch((e) => e);
+    expect(isReadOnlyViolation(err)).toBe(true);
+    expect(await withOrganization(db, id, (tx) => loadBamfEnabled(tx))).toBe(true);
+  });
+
+  it("die Wahl einer offenen Registrierung lässt sich nicht nachträglich ändern", async () => {
+    const hash = `h-${randomUUID()}`;
+    const err = await withRegistrationAccess(db, { tokenHash: hash }, async (tx) => {
+      await tx.insert(s.registrations).values({ tokenHash: hash, schoolName: "X Schule", firstName: "A", lastName: "B", email: "x@y.test", termsVersion: "t", termsAcceptedAt: new Date(), expiresAt: new Date(Date.now() + 3_600_000), bamfEnabled: false });
+      await tx.update(s.registrations).set({ bamfEnabled: true });
+    }).catch((e) => e);
+    expect(String((err as { cause?: { message?: string } }).cause?.message)).toContain("unveränderlich");
   });
 });
