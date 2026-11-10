@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   "assignment.manage", // Aufgaben stellen
   "assignment.review", // Abgaben lesen und Rückmeldung geben
   "course.participate", // am Unterricht teilnehmen, Aufgaben abgeben
+  "account.invite", // Einladungslink zum Passwort-Setzen erzeugen (auch zum Zurücksetzen)
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -24,7 +25,7 @@ const ALL: readonly Permission[] = PERMISSIONS;
 
 const MATRIX: Record<Role, readonly Permission[]> = {
   ADMIN: ALL.filter((p) => p !== "course.participate"),
-  STAFF: ["course.configure", "enrollment.manage", "session.schedule", "attendance.correct", "evidence.export"],
+  STAFF: ["course.configure", "enrollment.manage", "session.schedule", "attendance.correct", "evidence.export", "account.invite"],
   // Lehrkräfte ändern weder Kursdaten noch die Kurszuordnung (bei Seconos war beides sichtbar).
   TEACHER: ["session.teach", "attendance.review", "attendance.correct", "register.write", "assignment.manage", "assignment.review"],
   LEARNER: ["course.participate"],
@@ -45,4 +46,16 @@ export function canInCourse(actor: Actor, permission: Permission, courseId: stri
   if (actor.role === "TEACHER" && COURSE_BOUND.includes(permission)) return actor.assignedCourseIds.includes(courseId);
   if (actor.role === "LEARNER") return actor.assignedCourseIds.includes(courseId);
   return true;
+}
+
+/**
+ * Wessen Zugang darf jemand einrichten oder zurücksetzen? Die Leitung bei allen,
+ * die Verwaltung nur bei Teilnehmenden. Die Verwaltung sieht den Link selbst; bei
+ * Lehrkräften könnte sie sich damit deren Rechte (Klassenbuch, Anwesenheit,
+ * Rückmeldungen) aneignen, bei Leitung und Verwaltung noch mehr.
+ */
+export function canManageAccountOf(actorRole: Role, targetRole: Role): boolean {
+  if (!can(actorRole, "account.invite")) return false;
+  if (actorRole === "ADMIN") return true;
+  return targetRole === "LEARNER";
 }

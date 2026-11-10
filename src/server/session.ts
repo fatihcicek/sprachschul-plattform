@@ -8,15 +8,18 @@ import { eq } from "drizzle-orm";
 import { memberships, organizations, users } from "@/db/schema";
 import { withOrganization, withSlugLookup } from "@/db/client";
 import { getDb } from "@/db";
+import { currentPasswordVersion } from "@/server/auth";
 
 const COOKIE = "kw_session";
 const MAX_AGE = 60 * 60 * 12;
 
-export type Session = { membershipId: string; organizationId: string };
+/** passwordVersion: Stand des Passworts beim Anmelden. Ändert es sich, ist die Sitzung ungültig. */
+export type Session = { membershipId: string; organizationId: string; passwordVersion: number };
 
 function secret(): string {
   const s = process.env.SESSION_SECRET;
   if (!s || s.length < 16) throw new Error("SESSION_SECRET fehlt oder ist zu kurz");
+  if (process.env.NODE_ENV === "production" && s === "entwicklung-nur-lokal-bitte-ersetzen") throw new Error("SESSION_SECRET ist noch der Beispielwert");
   return s;
 }
 
@@ -37,7 +40,7 @@ export function decodeSession(token: string | undefined, now = Date.now()): Sess
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as Session & { exp: number };
     if (typeof data.exp !== "number" || data.exp < now) return null;
-    return { membershipId: data.membershipId, organizationId: data.organizationId };
+    return { membershipId: data.membershipId, organizationId: data.organizationId, passwordVersion: typeof data.passwordVersion === "number" ? data.passwordVersion : 0 };
   } catch {
     return null;
   }
@@ -65,7 +68,11 @@ export async function clearSession() {
   (await cookies()).delete(COOKIE);
 }
 
-export const demoLoginEnabled = () => process.env.DEMO_LOGIN === "1";
+/**
+ * Die Demo-Anmeldung umgeht Passwörter. Sie läuft nur außerhalb der Produktion
+ * oder zusammen mit den Beispieldaten (DEMO_SEED=1, also einer Testumgebung).
+ */
+export const demoLoginEnabled = () => process.env.DEMO_LOGIN === "1" && (process.env.NODE_ENV !== "production" || process.env.DEMO_SEED === "1");
 
 /** Findet die Demo-Schule und ihre Personen für die Auswahl auf der Anmeldeseite. */
 export async function demoPeople() {
@@ -88,5 +95,7 @@ export async function demoPeople() {
 export async function loginAs(membershipId: string) {
   const { organizationId, people } = await demoPeople();
   if (!organizationId || !people.some((p) => p.membershipId === membershipId)) throw new Error("Unbekannte Person");
-  await setSession({ membershipId, organizationId });
+  const db = await getDb();
+  const passwordVersion = await withOrganization(db, organizationId, (tx) => currentPasswordVersion(tx, membershipId));
+  await setSession({ membershipId, organizationId, passwordVersion });
 }

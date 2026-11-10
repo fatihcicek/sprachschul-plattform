@@ -339,3 +339,51 @@ export const feedbacks = pgTable(
     foreignKey({ columns: [t.authorMembershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] }),
   ],
 );
+
+// Passwort einer Person (nur der Hash, nie das Passwort). Eine Person hat höchstens eins.
+export const credentials = pgTable(
+  "credentials",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    membershipId: uuid("membership_id").notNull().unique(),
+    passwordHash: text("password_hash").notNull(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [foreignKey({ columns: [t.membershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] })],
+);
+
+// Einladungslink zum Passwort-Setzen. Gespeichert wird nur der Hash des Links;
+// der Link selbst wird einmal angezeigt. Einmalig verwendbar und befristet.
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    membershipId: uuid("membership_id").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: ts("expires_at").notNull(),
+    usedAt: ts("used_at"),
+    createdByMembershipId: uuid("created_by_membership_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique().on(t.organizationId, t.tokenHash),
+    index().on(t.organizationId, t.membershipId),
+    foreignKey({ columns: [t.membershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] }),
+    foreignKey({ columns: [t.createdByMembershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] }),
+  ],
+);
+
+// Anmeldeversuche für die Begrenzung gegen systematisches Raten.
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    emailKey: text("email_key").notNull(),
+    succeeded: boolean("succeeded").notNull(),
+    attemptedAt: ts("attempted_at").notNull().defaultNow(),
+  },
+  (t) => [index().on(t.organizationId, t.emailKey, t.attemptedAt), index().on(t.organizationId, t.attemptedAt)],
+);

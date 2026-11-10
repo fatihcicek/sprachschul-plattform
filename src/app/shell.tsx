@@ -27,5 +27,6 @@ export function Shell({ name, home, nav = [], wide = false, children }: { name: 
 export const ADMIN_NAV: NavLink[] = [
   { href: "/verwaltung/heute", label: "Heute" },
   { href: "/verwaltung", label: "Kurse" },
+  { href: "/verwaltung/personen", label: "Personen" },
   { href: "/lehrkraft", label: "Aufgaben" },
 ];

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
     "db:seed": "tsx --env-file=.env scripts/seed.ts",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "school:create": "tsx --env-file=.env scripts/create-school.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.16",
