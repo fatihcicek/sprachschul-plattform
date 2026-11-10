@@ -57,3 +57,14 @@ h2.sect { font-size: 16px; margin: 24px 0 10px; color: var(--muted); font-weight
 .badge.phase-RUNNING { background:#DDF1E8; color:var(--ok); }
 .badge.phase-OVER { background:#EEE9DC; color:var(--muted); }
 .badge.open { background:#FBEFD2; }
+.linkcard { display:block; text-decoration:none; color:inherit; }
+.linkcard:hover { border-color: var(--accent); }
+.ptable { width:100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+.ptable th, .ptable td { text-align:left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ptable th { color: var(--muted); font-weight: 600; font-size: 13px; }
+@media print {
+  body { background: #fff; }
+  .noprint { display: none !important; }
+  .shell { max-width: none; padding: 0; }
+  .protocol tr { break-inside: avoid; }
+}

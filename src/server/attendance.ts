@@ -20,9 +20,12 @@ import { loadActor, NotAllowedError, requireInCourse } from "@/server/actor";
 
 export { NotAllowedError };
 
+/** Regelverstoß mit verständlicher Meldung (nicht zu verwechseln mit Berechtigung). */
+export class AttendanceRuleError extends Error {}
+
 async function loadSession(tx: Tx, sessionId: string) {
   const [session] = await tx.select().from(lessonSessions).where(eq(lessonSessions.id, sessionId));
-  if (!session) throw new Error("Termin nicht gefunden");
+  if (!session) throw new AttendanceRuleError("Termin nicht gefunden");
   return session;
 }
 
@@ -39,7 +42,8 @@ export async function proposeAttendance(tx: Tx, sessionId: string): Promise<{ pr
   );
   const events = await tx.select().from(connectionEvents).where(eq(connectionEvents.sessionId, sessionId));
   const existing = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.sessionId, sessionId));
-  const confirmed = new Set(existing.filter((r) => r.reviewState === "CONFIRMED").map((r) => r.membershipId));
+  // Bestätigte und von Hand geänderte Einträge überschreibt eine Neuberechnung nie.
+  const confirmed = new Set(existing.filter((r) => r.reviewState === "CONFIRMED" || r.manual).map((r) => r.membershipId));
 
   const window = { start: session.startsAt, end: session.endsAt };
   const sessionMinutes = Math.floor((session.endsAt.getTime() - session.startsAt.getTime()) / 60_000);
@@ -55,6 +59,8 @@ export async function proposeAttendance(tx: Tx, sessionId: string): Promise<{ pr
       .onConflictDoUpdate({
         target: [attendanceRecords.sessionId, attendanceRecords.membershipId],
         set: { status, presentMinutes, updatedAt: new Date() },
+        // Nur noch offene Vorschläge ohne Handänderung; ein Wettlauf mit der Bestätigung ändert nichts.
+        setWhere: and(eq(attendanceRecords.reviewState, "PROPOSED"), eq(attendanceRecords.manual, false)),
       });
     proposed += 1;
   }
@@ -65,7 +71,7 @@ export async function proposeAttendance(tx: Tx, sessionId: string): Promise<{ pr
 export async function confirmAttendance(tx: Tx, actorMembershipId: string, recordIds: string[]): Promise<number> {
   if (recordIds.length === 0) return 0;
   const records = await tx.select().from(attendanceRecords).where(inArray(attendanceRecords.id, recordIds));
-  if (records.length !== new Set(recordIds).size) throw new Error("Anwesenheitseintrag nicht gefunden");
+  if (records.length !== new Set(recordIds).size) throw new AttendanceRuleError("Anwesenheitseintrag nicht gefunden");
   const sessionIds = [...new Set(records.map((r) => r.sessionId))];
   for (const sessionId of sessionIds) {
     const session = await loadSession(tx, sessionId);
@@ -103,33 +109,48 @@ export async function changeAttendanceStatus(
   toStatus: AttendanceStatus,
   reason?: string,
 ): Promise<"none" | "update" | "correction"> {
-  const [record] = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.id, recordId));
-  if (!record) throw new Error("Anwesenheitseintrag nicht gefunden");
+  // Zeile sperren: gleichzeitiges Bestätigen oder Ändern wartet, bis diese Änderung fertig ist.
+  const [record] = await tx.select().from(attendanceRecords).where(eq(attendanceRecords.id, recordId)).for("update");
+  if (!record) throw new AttendanceRuleError("Anwesenheitseintrag nicht gefunden");
   const session = await loadSession(tx, record.sessionId);
   const permission: Permission = record.reviewState === "CONFIRMED" ? "attendance.correct" : "attendance.review";
   await requireInCourse(tx, actorMembershipId, permission, session.courseId);
 
-  const plan = planStatusChange(record, toStatus, reason);
+  let plan;
+  try {
+    plan = planStatusChange(record, toStatus, reason);
+  } catch (e) {
+    throw new AttendanceRuleError(e instanceof Error ? e.message : "Ungültige Änderung");
+  }
   if (plan.kind === "none") return "none";
 
-  await tx.update(attendanceRecords).set({ status: toStatus, updatedAt: new Date() }).where(eq(attendanceRecords.id, recordId));
-  if (plan.kind === "correction") {
-    await tx.insert(attendanceCorrections).values({
-      organizationId: record.organizationId,
-      attendanceRecordId: recordId,
-      fromStatus: plan.fromStatus,
-      toStatus: plan.toStatus,
-      reason: plan.reason,
-      actorMembershipId,
-    });
-    await tx.insert(auditEvents).values({
-      organizationId: record.organizationId,
-      actorMembershipId,
-      action: "attendance.corrected",
-      entity: "attendance_record",
-      entityId: recordId,
-      meta: { from: plan.fromStatus, to: plan.toStatus },
-    });
+  if (plan.kind === "update") {
+    const changed = await tx
+      .update(attendanceRecords)
+      .set({ status: toStatus, manual: true, updatedAt: new Date() })
+      .where(and(eq(attendanceRecords.id, recordId), eq(attendanceRecords.reviewState, "PROPOSED")))
+      .returning({ id: attendanceRecords.id });
+    if (changed.length === 0) throw new AttendanceRuleError("Die Anwesenheit wurde inzwischen bestätigt. Bitte lade die Seite neu.");
+    return "update";
   }
-  return plan.kind;
+
+  // Korrektur: erst der unveränderliche Eintrag mit Begründung, dann die Änderung (die Datenbank verlangt diese Reihenfolge).
+  await tx.insert(attendanceCorrections).values({
+    organizationId: record.organizationId,
+    attendanceRecordId: recordId,
+    fromStatus: plan.fromStatus,
+    toStatus: plan.toStatus,
+    reason: plan.reason,
+    actorMembershipId,
+  });
+  await tx.update(attendanceRecords).set({ status: toStatus, updatedAt: new Date() }).where(eq(attendanceRecords.id, recordId));
+  await tx.insert(auditEvents).values({
+    organizationId: record.organizationId,
+    actorMembershipId,
+    action: "attendance.corrected",
+    entity: "attendance_record",
+    entityId: recordId,
+    meta: { from: plan.fromStatus, to: plan.toStatus },
+  });
+  return "correction";
 }

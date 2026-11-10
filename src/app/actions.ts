@@ -10,6 +10,8 @@ import { headers } from "next/headers";
 import { asSessionUser } from "@/server/context";
 import * as svc from "@/server/assignments";
 import * as courseSvc from "@/server/courses";
+import * as teach from "@/server/teaching";
+import { changeAttendanceStatus } from "@/server/attendance";
 
 export async function login(formData: FormData) {
   await loginAs(String(formData.get("membershipId") ?? ""));
@@ -128,4 +130,46 @@ export async function createCourseAction(input: unknown): Promise<CreateCourseRe
     if (e instanceof courseSvc.CourseInputError || e instanceof svc.NotAllowedError) return { ok: false, message: e.message };
     throw e;
   }
+}
+
+
+// ---- Unterricht: Kursraum ----
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const STATUSES = ["PRESENT", "PARTIAL", "ABSENT", "EXCUSED"] as const;
+const isId = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
+
+type RoomResult<T = object> = ({ ok: true } & T) | { ok: false; message: string };
+
+async function room<T extends object = object>(sessionId: unknown, fn: (tx: Parameters<Parameters<typeof asSessionUser>[0]>[0], me: string) => Promise<T | void>): Promise<RoomResult<T>> {
+  if (!isId(sessionId)) return { ok: false, message: "Unbekannter Termin." };
+  try {
+    const extra = await asSessionUser(fn);
+    revalidatePath(`/unterricht/${sessionId}`);
+    revalidatePath("/unterricht");
+    revalidatePath("/verwaltung/heute");
+    return { ok: true, ...((extra ?? {}) as T) };
+  } catch (e) {
+    if (e instanceof teach.NotAllowedError) return { ok: false, message: "Dafür fehlt dir die Berechtigung." };
+    if (e instanceof teach.TeachingRuleError || e instanceof teach.AttendanceRuleError) return { ok: false, message: e.message };
+    throw e;
+  }
+}
+
+export async function proposeAttendanceAction(sessionId: string): Promise<RoomResult> {
+  return room(sessionId, async (tx, me) => { await teach.proposeAsActor(tx, me, sessionId); });
+}
+export async function confirmAttendanceAction(sessionId: string): Promise<RoomResult> {
+  return room(sessionId, async (tx, me) => { await teach.confirmAllAsActor(tx, me, sessionId); });
+}
+export async function setStatusAction(sessionId: string, recordId: string, status: string, reason: string): Promise<RoomResult> {
+  if (!isId(recordId) || typeof status !== "string" || !(STATUSES as readonly string[]).includes(status) || typeof reason !== "string") return { ok: false, message: "Ungültige Angabe." };
+  return room(sessionId, async (tx, me) => { await changeAttendanceStatus(tx, me, recordId, status as (typeof STATUSES)[number], reason.slice(0, 500)); });
+}
+export async function saveRegisterAction(sessionId: string, content: string, basis: string | null): Promise<RoomResult<{ version: string }>> {
+  if (typeof content !== "string" || (basis !== null && typeof basis !== "string")) return { ok: false, message: "Ungültige Angabe." };
+  return room(sessionId, (tx, me) => teach.saveRegister(tx, me, sessionId, content.slice(0, teach.REGISTER_MAX + 1), new Date(), basis));
+}
+export async function closeSessionAction(sessionId: string): Promise<RoomResult> {
+  return room(sessionId, async (tx, me) => { await teach.closeSession(tx, me, sessionId); });
 }

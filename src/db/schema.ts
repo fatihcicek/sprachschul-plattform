@@ -193,6 +193,8 @@ export const attendanceRecords = pgTable(
     status: attendanceStatus("status").notNull(),
     presentMinutes: integer("present_minutes").notNull(),
     reviewState: reviewState("review_state").notNull().default("PROPOSED"),
+    // true, sobald ein Mensch den Vorschlag geändert hat: eine Neuberechnung überschreibt ihn dann nicht mehr.
+    manual: boolean("manual").notNull().default(false),
     confirmedByMembershipId: uuid("confirmed_by_membership_id"),
     confirmedAt: ts("confirmed_at"),
     createdAt: createdAt(),
@@ -386,4 +388,22 @@ export const loginAttempts = pgTable(
     attemptedAt: ts("attempted_at").notNull().defaultNow(),
   },
   (t) => [index().on(t.organizationId, t.emailKey, t.attemptedAt), index().on(t.organizationId, t.attemptedAt)],
+);
+
+// Jede gespeicherte Fassung des Klassenbucheintrags. Nur ergänzend, nie geändert (Datenbank-Trigger).
+export const classRegisterVersions = pgTable(
+  "class_register_versions",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    sessionId: uuid("session_id").notNull(),
+    content: text("content").notNull(),
+    authorMembershipId: uuid("author_membership_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index().on(t.organizationId, t.sessionId, t.createdAt),
+    foreignKey({ columns: [t.sessionId, t.organizationId], foreignColumns: [lessonSessions.id, lessonSessions.organizationId] }),
+    foreignKey({ columns: [t.authorMembershipId, t.organizationId], foreignColumns: [memberships.id, memberships.organizationId] }),
+  ],
 );
