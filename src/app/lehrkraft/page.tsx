@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { courses, memberships, users } from "@/db/schema";
-import { Shell } from "@/app/shell";
+import { Shell, TEACHER_NAV } from "@/app/shell";
 import { createAssignmentAction } from "@/app/actions";
 import { asSessionUser } from "@/server/context";
 import { listForTeacher, NotAllowedError } from "@/server/assignments";
@@ -34,7 +34,7 @@ export default async function Lehrkraft() {
     return n ? `${n.f} ${n.l}` : "Unbekannt";
   };
   return (
-    <Shell name={data.name} home="/lehrkraft">
+    <Shell name={data.name} home="/unterricht" nav={TEACHER_NAV}>
       <h1>Aufgaben und Abgaben</h1>
       {data.items.map(({ assignment: a, submissions }) => (
         <div key={a.id} className="card">

@@ -37,7 +37,7 @@ export default async function Heute() {
       <h2 className="sect">Unterricht heute</h2>
       {lessons.length === 0 && <div className="card muted">Heute findet kein Unterricht statt.</div>}
       {lessons.map((l) => (
-        <div key={l.sessionId} className="card">
+        <Link key={l.sessionId} href={`/unterricht/${l.sessionId}`} className="card linkcard">
           <div className="row">
             <div>
               <strong>{l.courseName}</strong>
@@ -47,7 +47,7 @@ export default async function Heute() {
             </div>
             <span className={`badge phase-${l.phase}`}>{PHASE[l.phase]}</span>
           </div>
-        </div>
+        </Link>
       ))}
 
       <h2 className="sect">Offen</h2>
@@ -57,13 +57,13 @@ export default async function Heute() {
           <strong>Anwesenheit noch nicht bestätigt</strong>
           <div className="muted">Die Bestätigung erfolgt durch die Lehrkraft.</div>
           {openAttendance.map((o) => (
-            <div key={o.sessionId} className="person">
+            <Link key={o.sessionId} href={`/unterricht/${o.sessionId}`} className="person" style={{ textDecoration: "none", color: "inherit" }}>
               <div className="grow">
                 {o.courseName}
                 <div className="muted">{fmtShort.format(o.startsAt)}, {fmtTime.format(o.startsAt)}–{fmtTime.format(o.endsAt)} Uhr</div>
               </div>
               <span className="badge open">{o.unconfirmed} offen</span>
-            </div>
+            </Link>
           ))}
         </div>
       )}
@@ -71,12 +71,12 @@ export default async function Heute() {
         <div className="card">
           <strong>Klassenbuch ohne Eintrag</strong>
           {missingRegister.map((o) => (
-            <div key={o.sessionId} className="person">
+            <Link key={o.sessionId} href={`/unterricht/${o.sessionId}`} className="person" style={{ textDecoration: "none", color: "inherit" }}>
               <div className="grow">
                 {o.courseName}
                 <div className="muted">{fmtShort.format(o.startsAt)}, {fmtTime.format(o.startsAt)}–{fmtTime.format(o.endsAt)} Uhr</div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

@@ -1,0 +1,80 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { asSessionUser } from "@/server/context";
+import { loadRoom, NotAllowedError, recordExport, TeachingRuleError } from "@/server/teaching";
+import { fmtDate, fmtDateTime, fmtTime, MODE_DE, STATUS_DE } from "../../format";
+import { PrintButton } from "./print";
+
+export const dynamic = "force-dynamic";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Einwahlprotokoll eines Termins als druckbare Seite (Browser: „Als PDF speichern“). */
+export default async function Protokoll({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!UUID_RE.test(id)) redirect("/unterricht");
+  const now = new Date();
+  const room = await asSessionUser(async (tx, me) => {
+    try {
+      const r = await loadRoom(tx, me, id, now);
+      if (!r.can.export || now < r.session.startsAt) return null;
+      await recordExport(tx, me, id); // jede Ausgabe wird festgehalten
+      return r;
+    } catch (e) {
+      if (e instanceof NotAllowedError || e instanceof TeachingRuleError) return null;
+      throw e;
+    }
+  });
+  if (!room) redirect(`/unterricht/${id}`);
+  const unconfirmed = room.learners.some((l) => l.reviewState !== "CONFIRMED");
+  return (
+    <main className="shell wide protocol">
+      <div className="noprint row" style={{ marginBottom: 16 }}>
+        <Link href={`/unterricht/${id}`} className="muted">← Zurück zum Kursraum</Link>
+        <PrintButton />
+      </div>
+      <h1 style={{ marginBottom: 4 }}>Einwahlprotokoll</h1>
+      <p className="muted" style={{ marginTop: 0 }}>{room.schoolName}</p>
+      <dl className="summary">
+        <dt>Kurs</dt>
+        <dd>{room.course.name} ({room.course.category}){room.course.bamfCourseNumber ? `, BAMF-Kursnummer ${room.course.bamfCourseNumber}` : ""}</dd>
+        <dt>Termin</dt>
+        <dd>{fmtDate.format(room.session.startsAt)}, {fmtTime.format(room.session.startsAt)}–{fmtTime.format(room.session.endsAt)} Uhr · {room.session.plannedUe} UE · {MODE_DE[room.session.mode]}</dd>
+      </dl>
+      {unconfirmed && <div className="warn">Nicht alle Anwesenheiten sind bestätigt. Vorschläge sind als „Vorschlag“ gekennzeichnet und noch kein Nachweis.</div>}
+      <table className="ptable">
+        <thead>
+          <tr><th>Teilnehmende</th><th>Einwahlzeiten</th><th>Minuten</th><th>Anwesenheit</th><th>Bestätigung</th></tr>
+        </thead>
+        <tbody>
+          {room.learners.map((l) => (
+            <tr key={l.membershipId}>
+              <td>{l.name}</td>
+              <td>
+                {l.intervals.length === 0 ? "keine Einwahl" : l.intervals.map((i, n) => <div key={n}>{fmtTime.format(i.start)}–{fmtTime.format(i.end)}</div>)}
+                {l.openEnded && <div className="muted">letzte Einwahl ohne Abmeldung</div>}
+              </td>
+              <td>{l.presentMinutes ?? "–"}</td>
+              <td>
+                {l.status ? STATUS_DE[l.status] : "nicht berechnet"}
+                {l.corrections.map((c, n) => (
+                  <div key={n} className="muted">korrigiert von {STATUS_DE[c.fromStatus]} auf {STATUS_DE[c.toStatus]}: „{c.reason}“ ({c.by}, {fmtDateTime.format(c.at)})</div>
+                ))}
+              </td>
+              <td>{l.reviewState === "CONFIRMED" && l.confirmedBy && l.confirmedAt ? `${l.confirmedBy}, ${fmtDateTime.format(l.confirmedAt)}` : "Vorschlag"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {room.register && (
+        <>
+          <h2 className="sect">Klassenbuch</h2>
+          <pre className="text">{room.register.content}</pre>
+          <p className="muted">Eingetragen von {room.register.author}, {fmtDateTime.format(room.register.updatedAt)}</p>
+        </>
+      )}
+      <p className="muted" style={{ marginTop: 24 }}>
+        Erstellt am {fmtDateTime.format(now)}. Quelle: Einwahlprotokoll der Plattform; die Bewertung (anwesend/teilweise) ist ein Vorschlag nach einer vorläufigen Regel, gültig erst nach Bestätigung durch die Lehrkraft.
+      </p>
+    </main>
+  );
+}
