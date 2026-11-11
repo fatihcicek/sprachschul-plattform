@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { passwordLogin } from "@/app/actions";
 
@@ -17,6 +18,7 @@ export function LoginForm({ defaultSchool }: { defaultSchool: string }) {
       <div style={{ marginTop: 16 }}>
         <button type="submit" disabled={pending}>{pending ? "Anmelden …" : "Anmelden"}</button>
       </div>
+      <p className="muted" style={{ marginBottom: 0 }}><Link href="/passwort-vergessen">Passwort vergessen?</Link></p>
     </form>
   );
 }

@@ -9,6 +9,10 @@ export const CONFIRM_HOURS = 24;
 
 /** Begrenzung je Stunde. Zählt jede angenommene Registrierungsanfrage, nicht erst die bestätigte. */
 export const REGISTRATION_LIMITS = { windowMinutes: 60, perIp: 5, perEmail: 3, global: 100 };
+/** Passwort vergessen: Jede Anfrage zählt, auch für unbekannte Adressen (sonst ließe sich damit Adressen abfragen). */
+export const RESET_LIMITS = { windowMinutes: 60, perIp: 10, perEmail: 3, perSchool: 30, global: 200 };
+/** Ein frischer Link wird nicht durch einen neuen ersetzt: Dritte sollen ihn nicht per Anfrage entwerten können. */
+export const RESET_REUSE_MINUTES = 15;
 
 // Auch unsichtbare Zeichen und Textrichtungs-Umschalter: Sie könnten dem Empfänger einen irreführenden Schulnamen vortäuschen.
 const CONTROL = /[\u0000-\u001f\u007f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
@@ -72,7 +76,7 @@ export function newRegistrationToken(): { token: string; hash: string } {
 export const isRegistrationToken = (token: unknown): token is string => typeof token === "string" && /^[A-Za-z0-9_-]{43}$/.test(token);
 
 /** Schlüssel für die Zählung: HMAC, damit weder IP-Adressen noch E-Mail-Adressen im Klartext gespeichert werden. */
-export const rateKey = (secret: string, kind: "ip" | "email" | "global", value: string) => createHmac("sha256", secret).update(`${kind}:${value}`).digest("base64url");
+export const rateKey = (secret: string, kind: "ip" | "email" | "global" | "reset-ip" | "reset-email" | "reset-school" | "reset-global", value: string) => createHmac("sha256", secret).update(`${kind}:${value}`).digest("base64url");
 
 /** Mailtext: fest, ohne jede Eingabe der registrierenden Person (sonst Phishing unter unserem Absender möglich). */
 export function confirmationMail(link: string): { subject: string; text: string } {
@@ -141,4 +145,24 @@ export function clientIpFrom(forwardedFor: string | null, hops = 1): string {
   if (!ip.includes(":")) return ip;
   const groups = ip.split("::")[0]!.split(":").slice(0, 4);
   return `v6:${groups.join(":")}`;
+}
+
+/** Mailtext für „Passwort vergessen“: fest, ohne Eingaben von außen. */
+export function passwordResetMail(link: string, slug: string, invitationDays: number): { subject: string; text: string } {
+  return {
+    subject: "Kurswerk: Passwort neu festlegen",
+    text: [
+      "Hallo,",
+      "",
+      `für dein Konto bei Kurswerk (Schule: ${slug}) wurde ein neues Passwort angefordert. Lege es mit diesem Link fest:`,
+      "",
+      link,
+      "",
+      `Der Link gilt ${invitationDays} Tage und kann nur einmal verwendet werden. Gib ihn nicht weiter.`,
+      "Frühere Links zu diesem Konto sind damit ungültig. Dein bisheriges Passwort bleibt gültig, bis du ein neues festlegst.",
+      "Wenn du das nicht angefordert hast, ignoriere diese E-Mail.",
+      "",
+      "Kurswerk",
+    ].join("\n"),
+  };
 }
