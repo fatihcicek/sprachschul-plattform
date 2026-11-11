@@ -108,3 +108,49 @@ export function planStatusChange(record: ReviewedRecord, toStatus: AttendanceSta
   if (!trimmed) throw new Error("Korrektur nach Bestätigung braucht eine Begründung");
   return { kind: "correction", fromStatus: record.status, toStatus, reason: trimmed };
 }
+
+export type TimelineSegment = { kind: "active" | "idle"; from: Date; to: Date; leftPct: number; widthPct: number };
+
+/**
+ * Zerlegt die Terminzeit in aufeinanderfolgende Abschnitte „eingewählt“ und „nicht eingewählt“
+ * für die Zeitleiste im Einwahlprotokoll. Die Abschnitte füllen den ganzen Termin lückenlos aus.
+ * Erwartet Zeiträume aus computePresence (sortiert, innerhalb des Termins, ohne Überlappung).
+ */
+export function timelineSegments(intervals: Interval[], session: Interval): TimelineSegment[] {
+  const total = session.end.getTime() - session.start.getTime();
+  if (total <= 0) return [];
+  const out: TimelineSegment[] = [];
+  const lo = session.start.getTime();
+  const hi = session.end.getTime();
+  const push = (kind: "active" | "idle", fromRaw: number, toRaw: number) => {
+    // Auf die Terminzeit begrenzen: Die Leiste darf nie über ihren Rahmen hinausragen.
+    const from = Math.max(lo, Math.min(hi, fromRaw));
+    const to = Math.max(lo, Math.min(hi, toRaw));
+    if (to <= from) return;
+    out.push({ kind, from: new Date(from), to: new Date(to), leftPct: ((from - session.start.getTime()) / total) * 100, widthPct: ((to - from) / total) * 100 });
+  };
+  let cursor = lo;
+  for (const i of [...intervals].sort((a, b) => a.start.getTime() - b.start.getTime())) {
+    if (i.end.getTime() <= cursor) continue;
+    const start = Math.max(i.start.getTime(), cursor);
+    push("idle", cursor, start);
+    push("active", start, i.end.getTime());
+    cursor = i.end.getTime();
+  }
+  push("idle", cursor, hi);
+  return out;
+}
+
+export type FirstJoin = { at: Date; position: "BEFORE" | "DURING" | "AFTER" };
+
+/**
+ * Erstes Einwahlereignis einer Person, auch vor Terminbeginn (wie in üblichen Einwahlprotokollen),
+ * mit Hinweis, wo es zum Termin liegt. Ohne JOIN gibt es keine erste Einwahl.
+ */
+export function firstJoin(events: ConnectionEvent[], session: Interval): FirstJoin | null {
+  const joins = events.filter((e) => e.type === "JOIN").sort((a, b) => a.at.getTime() - b.at.getTime());
+  const first = joins[0];
+  if (!first) return null;
+  const t = first.at.getTime();
+  return { at: first.at, position: t < session.start.getTime() ? "BEFORE" : t >= session.end.getTime() ? "AFTER" : "DURING" };
+}

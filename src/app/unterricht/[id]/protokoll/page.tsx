@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { asSessionUser } from "@/server/context";
+import { firstJoin, timelineSegments } from "@/domain/attendance";
 import { loadRoom, NotAllowedError, recordExport, TeachingRuleError } from "@/server/teaching";
 import { fmtDate, fmtDateTime, fmtTime, fmtTimeSec, MODE_DE, STATUS_DE } from "../../format";
 import { PrintButton } from "./print";
@@ -30,6 +31,7 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
     (tx, me) => recordExport(tx, me, id, { confirmed: room.learners.filter((l) => l.reviewState === "CONFIRMED").length, unconfirmed: room.learners.filter((l) => l.reviewState !== "CONFIRMED").length }),
     { auditOnly: true },
   );
+  const termin = { start: room.session.startsAt, end: room.session.endsAt };
   const unconfirmed = room.learners.some((l) => l.reviewState !== "CONFIRMED");
   return (
     <main className="shell wide protocol">
@@ -46,6 +48,34 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
         <dd>{fmtDate.format(room.session.startsAt)}, {fmtTime.format(room.session.startsAt)}–{fmtTime.format(room.session.endsAt)} Uhr · {room.session.plannedUe} UE · {MODE_DE[room.session.mode]}</dd>
       </dl>
       {unconfirmed && <div className="warn">Nicht alle Anwesenheiten sind bestätigt. Vorschläge sind als „Vorschlag“ gekennzeichnet und noch kein Nachweis.</div>}
+      <h2 className="sect">Zeitleiste</h2>
+      <p className="muted">Blau: eingewählt. Grau: nicht eingewählt. Die Leiste zeigt die Terminzeit von {fmtTime.format(termin.start)} bis {fmtTime.format(termin.end)} Uhr.</p>
+      <table className="ptable timeline">
+        <thead><tr><th>Nr.</th><th>Teilnehmende</th><th>Erste Einwahl</th><th className="tl-col">Aktivität</th></tr></thead>
+        <tbody>
+          {room.learners.map((l, n) => {
+            const first = firstJoin(l.events, termin);
+            return (
+              <tr key={l.membershipId}>
+                <td>{n + 1}.</td>
+                <td>{l.name}</td>
+                <td>{first ? <>{fmtTimeSec.format(first.at)}{first.position !== "DURING" && <div className="muted">{first.position === "BEFORE" ? "vor dem Termin" : "nach dem Termin"}</div>}</> : "–"}</td>
+                <td className="tl-col">
+                  <div className="tl-bar" role="img" aria-label={l.intervals.length === 0 ? "nicht eingewählt" : `eingewählt ${l.intervals.map((i) => `${fmtTime.format(i.start)} bis ${fmtTime.format(i.end)}`).join(", ")}`}>
+                    {timelineSegments(l.intervals, termin).map((seg, k) => (
+                      <span key={k} className={`tl-seg ${seg.kind}`} style={{ left: `${seg.leftPct}%`, width: `${seg.widthPct}%` }} title={`${seg.kind === "active" ? "eingewählt" : "nicht eingewählt"} ${fmtTime.format(seg.from)}–${fmtTime.format(seg.to)}`} />
+                    ))}
+                  </div>
+                  <div className="tl-times muted">
+                    {l.intervals.length === 0 ? "keine Einwahl im Termin" : l.intervals.map((i) => `${fmtTime.format(i.start)}–${fmtTime.format(i.end)}`).join(" · ")}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <h2 className="sect">Auswertung</h2>
       <table className="ptable">
         <thead>
           <tr><th>Teilnehmende</th><th>Einwahlzeiten</th><th>Minuten</th><th>Anwesenheit</th><th>Bestätigung</th></tr>
@@ -90,6 +120,7 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
           <p className="muted">Eingetragen von {room.register.author}, {fmtDateTime.format(room.register.updatedAt)}</p>
         </>
       )}
+      <div className="signline"><span>Unterschrift Lehrkraft</span></div>
       <p className="muted" style={{ marginTop: 24 }}>
         Erstellt am {fmtDateTime.format(now)}. Quelle: Einwahlprotokoll der Plattform; die Bewertung (anwesend/teilweise) ist ein Vorschlag nach einer vorläufigen Regel, gültig erst nach Bestätigung durch die Lehrkraft.
       </p>
