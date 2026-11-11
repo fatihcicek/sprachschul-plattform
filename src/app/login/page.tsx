@@ -20,7 +20,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const groups = (Object.keys(ROLE_LABEL) as (keyof typeof ROLE_LABEL)[]).map((r) => ({ role: r, items: people.filter((p) => p.role === r) }));
   return (
     <div className="auth">
-      <aside className="auth-side" aria-hidden="true">
+      <div className="auth-side" aria-hidden="true">
         <span className="auth-brand">Kurswerk</span>
         <div className="auth-art">
           {ART_BARS.map(([from, to], i) => (
@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           ))}
         </div>
         <p className="auth-claim">Anwesenheit, Protokoll und Klassenbuch an einem Ort.</p>
-      </aside>
+      </div>
       <main className="auth-main">
         <div className="auth-box">
           <h1>Anmelden</h1>
