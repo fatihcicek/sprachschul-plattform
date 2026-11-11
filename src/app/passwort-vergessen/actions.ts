@@ -26,15 +26,15 @@ export async function resetPasswordAction(_prev: ResetState, formData: FormData)
     return { error: UNAVAILABLE };
   }
   if (r.limited) return { error: "Zu viele Versuche. Bitte versuche es in einer Stunde noch einmal." };
-  const mail = r.mail;
-  if (mail) {
-    after(async () => {
-      try {
-        await createMailer().send(mail);
-      } catch (e) {
-        console.error("Passwort-Mail fehlgeschlagen", e instanceof Error ? e.name : "Fehler");
-      }
-    });
-  }
+  // Alles, was vom Konto abhängt, läuft erst nach der Antwort (Antwortzeit und Fehler dürfen nichts verraten).
+  const complete = r.complete;
+  after(async () => {
+    try {
+      const mail = await complete();
+      if (mail) await createMailer().send(mail);
+    } catch (e) {
+      console.error("Passwort vergessen: Link oder Mail fehlgeschlagen", e instanceof Error ? e.name : "Fehler");
+    }
+  });
   return { done: true };
 }
