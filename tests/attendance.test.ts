@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computePresence, planStatusChange, proposeStatus, type ConnectionEvent } from "@/domain/attendance";
+import { computePresence, planStatusChange, proposeStatus, timelineSegments, type ConnectionEvent } from "@/domain/attendance";
 
 const t = (hhmm: string) => new Date(`2026-11-10T${hhmm}:00+01:00`);
 const session = { start: t("18:00"), end: t("21:15") };
@@ -84,5 +84,31 @@ describe("planStatusChange", () => {
 
   it("tut nichts, wenn sich der Status nicht ändert", () => {
     expect(planStatusChange({ status: "PRESENT", reviewState: "CONFIRMED" }, "PRESENT")).toEqual({ kind: "none" });
+  });
+});
+
+describe("timelineSegments", () => {
+  const sum = (s: { widthPct: number }[]) => s.reduce((a, x) => a + x.widthPct, 0);
+
+  it("füllt den Termin lückenlos aus (eingewählt, Pause, eingewählt)", () => {
+    const p = computePresence([join("18:00"), leave("19:00"), join("19:30"), leave("21:15")], session);
+    const seg = timelineSegments(p.intervals, session);
+    expect(seg.map((s) => s.kind)).toEqual(["active", "idle", "active"]);
+    expect(sum(seg)).toBeCloseTo(100, 6);
+    expect(seg[1]?.from).toEqual(t("19:00"));
+    expect(seg[1]?.to).toEqual(t("19:30"));
+  });
+
+  it("zeigt späte Einwahl als Leerlauf am Anfang", () => {
+    const p = computePresence([join("18:45"), leave("21:15")], session);
+    const seg = timelineSegments(p.intervals, session);
+    expect(seg.map((s) => s.kind)).toEqual(["idle", "active"]);
+    expect(seg[0]?.leftPct).toBe(0);
+    expect(sum(seg)).toBeCloseTo(100, 6);
+  });
+
+  it("ohne Einwahl ein einziger Leerlauf-Abschnitt; ungültiger Termin ergibt nichts", () => {
+    expect(timelineSegments([], session).map((s) => s.kind)).toEqual(["idle"]);
+    expect(timelineSegments([], { start: t("10:00"), end: t("10:00") })).toEqual([]);
   });
 });

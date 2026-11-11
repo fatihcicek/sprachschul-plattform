@@ -90,6 +90,13 @@ h2.sect { font-size: 16px; margin: 24px 0 10px; color: var(--muted); font-weight
   .actions > * { width: 100%; }
   .ptable { display:block; overflow-x:auto; }
 }
+.tl-col { width: 60%; }
+.tl-bar { position: relative; height: 18px; background: #E4E1D8; border-radius: 3px; overflow: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.tl-seg { position: absolute; top: 0; bottom: 0; }
+.tl-seg.active { background: #3BA7E8; }
+.tl-seg.idle { background: transparent; }
+.tl-times { margin-top: 4px; font-size: 12px; }
+.signline { margin-top: 56px; width: 280px; border-top: 1px dotted var(--ink, #14213D); padding-top: 4px; font-size: 12px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 @media print {
   body { background: #fff; }

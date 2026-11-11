@@ -108,3 +108,28 @@ export function planStatusChange(record: ReviewedRecord, toStatus: AttendanceSta
   if (!trimmed) throw new Error("Korrektur nach Bestätigung braucht eine Begründung");
   return { kind: "correction", fromStatus: record.status, toStatus, reason: trimmed };
 }
+
+export type TimelineSegment = { kind: "active" | "idle"; from: Date; to: Date; leftPct: number; widthPct: number };
+
+/**
+ * Zerlegt die Terminzeit in aufeinanderfolgende Abschnitte „eingewählt“ und „nicht eingewählt“
+ * für die Zeitleiste im Einwahlprotokoll. Die Abschnitte füllen den ganzen Termin lückenlos aus.
+ * Erwartet Zeiträume aus computePresence (sortiert, innerhalb des Termins, ohne Überlappung).
+ */
+export function timelineSegments(intervals: Interval[], session: Interval): TimelineSegment[] {
+  const total = session.end.getTime() - session.start.getTime();
+  if (total <= 0) return [];
+  const out: TimelineSegment[] = [];
+  const push = (kind: "active" | "idle", from: number, to: number) => {
+    if (to <= from) return;
+    out.push({ kind, from: new Date(from), to: new Date(to), leftPct: ((from - session.start.getTime()) / total) * 100, widthPct: ((to - from) / total) * 100 });
+  };
+  let cursor = session.start.getTime();
+  for (const i of intervals) {
+    push("idle", cursor, i.start.getTime());
+    push("active", i.start.getTime(), i.end.getTime());
+    cursor = i.end.getTime();
+  }
+  push("idle", cursor, session.end.getTime());
+  return out;
+}
