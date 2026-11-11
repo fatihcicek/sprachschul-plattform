@@ -32,6 +32,8 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
     { auditOnly: true },
   );
   const termin = { start: room.session.startsAt, end: room.session.endsAt };
+  // Wer zugleich Lehrkraft ist, steht im Protokoll nur einmal (als Lehrkraft).
+  const teacherIds = new Set(room.teachers.map((t) => t.membershipId));
   const unconfirmed = room.learners.some((l) => l.reviewState !== "CONFIRMED");
   return (
     <main className="shell wide protocol">
@@ -53,11 +55,11 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
       <table className="ptable timeline">
         <thead><tr><th>Nr.</th><th>Person</th><th>Erste Einwahl</th><th className="tl-col">Aktivität</th></tr></thead>
         <tbody>
-          {[...room.teachers.map((p) => ({ ...p, teacher: true })), ...room.learners.map((p) => ({ ...p, teacher: false }))].map((l, n) => {
+          {[...room.teachers.map((p) => ({ ...p, teacher: true })), ...room.learners.filter((p) => !teacherIds.has(p.membershipId)).map((p) => ({ ...p, teacher: false }))].map((l, n) => {
             const first = firstJoin(l.events, termin);
             return (
               <tr key={l.membershipId}>
-                <td>{n + 1}.</td>
+                <td>{l.teacher ? "–" : `${n + 1 - room.teachers.length}.`}</td>
                 <td>{l.name}{l.teacher && <div className="muted">Lehrkraft</div>}</td>
                 <td>{first ? <>{fmtTimeSec.format(first.at)}{first.position !== "DURING" && <div className="muted">{first.position === "BEFORE" ? "vor dem Termin" : "nach dem Termin"}</div>}</> : "–"}</td>
                 <td className="tl-col">
@@ -103,11 +105,11 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
       <h2 className="sect">Rohereignisse (Ein- und Ausgang, auf die Sekunde)</h2>
       <p className="muted">Alle aufgezeichneten Ereignisse dieses Termins, auch außerhalb der Terminzeit. Die Anwesenheit oben wird daraus berechnet und auf die Terminzeit beschränkt.</p>
       <table className="ptable">
-        <thead><tr><th>Teilnehmende</th><th>Ereignisse</th></tr></thead>
+        <thead><tr><th>Person</th><th>Ereignisse</th></tr></thead>
         <tbody>
-          {[...room.teachers, ...room.learners].map((l) => (
+          {[...room.teachers.map((p) => ({ ...p, teacher: true })), ...room.learners.filter((p) => !teacherIds.has(p.membershipId)).map((p) => ({ ...p, teacher: false }))].map((l) => (
             <tr key={l.membershipId}>
-              <td>{l.name}</td>
+              <td>{l.name}{l.teacher && <div className="muted">Lehrkraft</div>}</td>
               <td>{l.events.length === 0 ? "keine" : l.events.map((e, n) => <span key={n} style={{ marginRight: 14, whiteSpace: "nowrap" }}>{e.type === "JOIN" ? "ein" : "aus"} {fmtTimeSec.format(e.at)}</span>)}</td>
             </tr>
           ))}

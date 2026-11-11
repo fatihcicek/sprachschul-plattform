@@ -128,9 +128,29 @@ describe("Lehrkraft im Einwahlprotokoll", () => {
   });
 
   it("Schule B sieht die Lehrkraft-Einwahl von Schule A nicht", async () => {
+    // Der Termin von Schule A ist für Schule B nicht erreichbar.
+    await expect(run(b, (tx) => loadRoom(tx, b.admin, a.past, NOW))).rejects.toBeInstanceOf(TeachingRuleError);
     const room = await run(b, (tx) => loadRoom(tx, b.teacher, b.past, NOW));
-    expect(room.teachers.every((t) => t.membershipId === b.teacher)).toBe(true);
-    expect(room.teachers[0]?.events ?? []).toEqual([]);
+    expect(room.teachers.map((t) => t.membershipId)).toEqual([b.teacher]);
+    expect(room.teachers[0]!.events).toEqual([]);
+  });
+
+  it("Vorschlag und Bestätigung legen für die Lehrkraft keine Anwesenheit an", async () => {
+    // Eigener Termin, damit der Ablauf der anderen Tests unberührt bleibt.
+    const sid = await run(a, async (tx) => {
+      const [x] = await tx.insert(s.lessonSessions).values({ organizationId: a.orgId, courseId: a.courseId, startsAt: d("2026-11-09T17:00:00Z"), endsAt: d("2026-11-09T19:00:00Z"), plannedUe: 2, mode: "VIRTUAL" }).returning();
+      const ev = (m: string, type: "JOIN" | "LEAVE", iso: string) => ({ organizationId: a.orgId, sessionId: x!.id, membershipId: m, type, occurredAt: d(iso), source: "test", dedupKey: `${x!.id}:${m}:${type}` });
+      await tx.insert(s.connectionEvents).values([
+        ev(a.teacher, "JOIN", "2026-11-09T17:00:00Z"), ev(a.teacher, "LEAVE", "2026-11-09T19:00:00Z"),
+        ev(a.l1, "JOIN", "2026-11-09T17:00:00Z"), ev(a.l1, "LEAVE", "2026-11-09T19:00:00Z"),
+      ]);
+      return x!.id;
+    });
+    await run(a, (tx) => proposeAsActor(tx, a.teacher, sid, NOW));
+    await run(a, (tx) => confirmAllAsActor(tx, a.teacher, sid, NOW));
+    const records = await run(a, (tx) => tx.select().from(s.attendanceRecords).where(eq(s.attendanceRecords.sessionId, sid)));
+    expect(records.some((r) => r.membershipId === a.teacher)).toBe(false);
+    expect(records.map((r) => r.membershipId).sort()).toEqual([a.l1, a.l2].sort());
   });
 });
 

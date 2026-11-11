@@ -7,7 +7,7 @@ Stand der Recherche: 10.11.2026 (ergänzt am selben Tag um die Recherche aus dem
 | Nr. | Anforderung | Quelle | Umsetzung | Status |
 | --- | --- | --- | --- | --- |
 | A1 | Einwahlprotokolle müssen fälschungssicher sein: nur automatisiert vom System ausgelesene Dateien, kein nachträglicher Import in bearbeitbare Formate | BSK-Newsletter 11.03.2021; Anlage 2 zu TRS IK 22/22 | `connection_events` wird nur vom System geschrieben; Ändern und Löschen sperrt die Datenbank | Umgesetzt (Datenebene), Export fehlt |
-| A2 | Protokoll identifiziert Teilnehmende und Lehrkraft mit Klarnamen in lateinischer Schrift | BSK-Newsletter 11.03.2021 | Ereignisse hängen an Personen mit Vor- und Nachname | Teilweise: Einwahl der Lehrkraft wird noch nicht erfasst |
+| A2 | Protokoll identifiziert Teilnehmende und Lehrkraft mit Klarnamen in lateinischer Schrift | BSK-Newsletter 11.03.2021 | Ereignisse hängen an Personen mit Vor- und Nachname | Teilweise: Lehrkraft-Zeile im Protokoll vorhanden (Zuordnung laut Kurs); die Einwahl selbst wird erst mit der Konferenzanbindung (BigBlueButton) erfasst |
 | A3 | Protokoll erfasst Datum und Zeitpunkt des Ein- und Ausloggens exakt | BSK-Newsletter 11.03.2021 | `occurred_at` je JOIN/LEAVE | Umgesetzt |
 | A4 | Aufbewahrung der Einwahlprotokolle fünf Jahre, elektronisch beim Träger, für unangekündigte Vor-Ort-Kontrollen | Anlage 2 zu TRS IK 22/22 | Protokolle sind nicht löschbar | Offen: Lösch- und Aufbewahrungskonzept (DSGVO) |
 | A5 | Höchstens 4 UE pro Tag im virtuellen Klassenzimmer, bei einem virtuellen Kurstag pro Woche 5 UE (Berufssprachkurse) | Anlage 2 zu TRS BSK 06/22 | `findVirtualUeViolations()` | Umgesetzt als Prüfung, Regel nicht gegen aktuelle Fassung geprüft |
