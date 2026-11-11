@@ -141,3 +141,5 @@ h2.sect { font-size: 16px; margin: 24px 0 10px; color: var(--muted); font-weight
   .land-axis { margin-left:0; display:none; }
   .land-who { width:104px; font-size:13px; }
 }
+.sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.land-status { margin:18px 0 0; padding:10px 14px; max-width:34em; background:var(--accent-soft); border:1px solid #E8D5A6; border-radius:10px; font-size:15px; }

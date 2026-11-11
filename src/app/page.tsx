@@ -12,7 +12,9 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Kurswerk – Kursverwaltung für Sprachschulen",
-  description: "Kurswerk schreibt aus der Einwahl das Protokoll, schlägt die Anwesenheit vor und lässt die Lehrkraft bestätigen. Für Sprachschulen und Kursträger.",
+  description: "Kurswerk hält Einwahlen als unveränderliches Protokoll fest, schlägt die Anwesenheit vor und lässt die Lehrkraft bestätigen. Im Aufbau.",
+  // Bis Impressum und Rechtstexte geprüft sind, soll die Seite nicht in Suchmaschinen auftauchen.
+  robots: { index: false, follow: false },
 };
 
 // Beispiel für die Abbildung: erfundene Personen, ein Abendkurs von 18:00 bis 21:15 Uhr.
@@ -30,11 +32,11 @@ const HOURS = ["18:00", "19:00", "20:00", "21:00"];
 const pct = (hhmm: string) => ((at(hhmm).getTime() - SESSION.start.getTime()) / (SESSION.end.getTime() - SESSION.start.getTime())) * 100;
 
 const POINTS = [
-  { title: "Einwahlprotokoll mit Zeitleiste", text: "Jede Einwahl wird auf die Sekunde festgehalten. Daraus entsteht pro Termin ein Protokoll mit Zeitleiste, das du ausdrucken oder als PDF speichern kannst. Die Datenbank verhindert nachträgliche Änderungen. Die automatische Anbindung an deine Videokonferenz ist noch in Arbeit." },
+  { title: "Einwahlprotokoll mit Zeitleiste", text: "Jede Einwahl wird auf die Sekunde festgehalten. Daraus entsteht pro Termin ein Protokoll mit Zeitleiste, das du ausdrucken oder als PDF speichern kannst. Die Datenbank verhindert nachträgliche Änderungen." },
   { title: "Anwesenheit bestätigen statt abtippen", text: "Kurswerk schlägt die Anwesenheit aus der Einwahl vor. Die Lehrkraft prüft und bestätigt. Korrekturen brauchen eine Begründung und bleiben sichtbar." },
   { title: "Klassenbuch und Aufgaben im selben Raum", text: "Nach dem Unterricht trägt die Lehrkraft das Klassenbuch ein. Aufgaben stellen, abgeben und zurückgeben läuft im selben Kurs." },
   { title: "Mehrere Schulen, streng getrennt", text: "Jede Schule sieht nur ihre eigenen Daten. Das setzt die Datenbank selbst durch, nicht nur die Oberfläche." },
-  { title: "BAMF-Funktionen nur, wenn du sie brauchst", text: "Bietest du keine geförderten Kurse an, bleiben Kursnummern und Nachweise ausgeblendet. Mit Förderung schaltest du sie in den Einstellungen ein." },
+  { title: "BAMF-Funktionen nur, wenn du sie brauchst", text: "Bietest du keine geförderten Kurse an, bleiben Kursnummern und Nachweise ausgeblendet. Mit Förderung schaltest du sie in den Einstellungen ein. Kurswerk hat keine BAMF-Zulassung und ist nicht an BerD oder InGe angebunden." },
 ];
 
 /** Startseite: für Angemeldete Weiterleitung in ihren Bereich, für alle anderen die Vorstellung von Kurswerk. */
@@ -53,15 +55,16 @@ export default async function Home() {
       <main>
         <section className="land-hero">
           <div className="land-copy">
-            <h1>Der Unterricht läuft online. Das Protokoll schreibt sich selbst.</h1>
-            <p className="land-lead">Kurswerk macht aus der Einwahl ein unveränderliches Protokoll, schlägt die Anwesenheit vor und lässt die Lehrkraft bestätigen. Für Sprachschulen und Kursträger.</p>
+            <h1>Anwesenheit, Protokoll und Klassenbuch an einem Ort.</h1>
+            <p className="land-lead">Kurswerk hält Einwahlen als unveränderliches Protokoll fest, schlägt die Anwesenheit vor und lässt die Lehrkraft bestätigen. Für Sprachschulen und Kursträger.</p>
             <div className="land-cta">
               {open ? <Link href="/registrieren" className="btn">Schule 7 Tage kostenlos testen</Link> : <Link href="/login" className="btn">Anmelden</Link>}
               {open && <Link href="/login" className="btn ghostlink">Anmelden</Link>}
             </div>
-            {open && <p className="muted land-note">Nach den 7 Tagen bleiben deine Daten lesbar. Ändern kannst du dann nichts mehr.</p>}
+            <p className="land-status">Stand heute: Die automatische Anbindung an die Videokonferenz fehlt noch. Einwahlen gibt es bisher nur als Beispieldaten.</p>
+            {open && <p className="muted land-note">Nach den 7 Tagen bleiben deine Daten lesbar, Änderungen sind dann gesperrt. Wie es danach weitergeht (Freischaltung, Preis), steht noch nicht fest.</p>}
           </div>
-          <figure className="land-proto" aria-label="Beispiel eines Einwahlprotokolls: eine Lehrkraft und fünf Teilnehmende, ein Abendkurs von 18:00 bis 21:15 Uhr">
+          <figure className="land-proto" aria-label="Beispielprotokoll: ein Abendkurs von 18:00 bis 21:15 Uhr">
             <div className="land-axis" aria-hidden="true">
               {HOURS.map((h) => (
                 <span key={h} style={{ left: `${pct(h)}%` }}>{h}</span>
@@ -70,7 +73,7 @@ export default async function Home() {
             <ul className="land-rows">
               {SAMPLE.map((p) => (
                 <li key={p.name}>
-                  <span className="land-who">{p.name}{p.role && <small>{p.role}</small>}</span>
+                  <span className="land-who">{p.name}{p.role && <small>{p.role}</small>}<span className="sr-only">{p.parts.length === 0 ? ": nicht eingewählt" : `: eingewählt ${p.parts.map(([a, b]) => `${a} bis ${b} Uhr`).join(" und ")}`}</span></span>
                   <span className="land-bar" aria-hidden="true">
                     {HOURS.slice(1).map((h) => <i key={h} className="land-grid" style={{ left: `${pct(h)}%` }} />)}
                     {timelineSegments(p.parts.map(([a, b]) => ({ start: at(a), end: at(b) })), SESSION)
@@ -83,7 +86,8 @@ export default async function Home() {
             <figcaption className="muted">So sieht ein Protokoll aus. Blau heißt eingewählt. Die Personen sind erfunden.</figcaption>
           </figure>
         </section>
-        <section className="land-points" aria-label="Was Kurswerk kann">
+        <section className="land-points" aria-labelledby="land-points-title">
+          <h2 id="land-points-title" className="sr-only">Was Kurswerk kann</h2>
           <dl>
             {POINTS.map((p) => (
               <div key={p.title}>
@@ -98,6 +102,7 @@ export default async function Home() {
         <span>Kurswerk ist im Aufbau.</span>
         <Link href="/datenschutz">Datenschutz</Link>
         <Link href="/nutzungsbedingungen">Nutzungsbedingungen</Link>
+        <Link href="/impressum">Impressum</Link>
       </footer>
     </div>
   );
