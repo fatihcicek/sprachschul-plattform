@@ -110,6 +110,30 @@ describe("Rechte", () => {
   });
 });
 
+describe("Lehrkraft im Einwahlprotokoll", () => {
+  it("zeigt die Einwahl der Kurs-Lehrkraft, aber nicht die einer anderen Lehrkraft, und bewertet sie nicht als Teilnehmende", async () => {
+    await run(a, (tx) =>
+      tx.insert(s.connectionEvents).values([
+        { organizationId: a.orgId, sessionId: a.past, membershipId: a.teacher, type: "JOIN" as const, occurredAt: d("2026-11-10T16:55:00Z"), source: "test", dedupKey: `${a.past}:t:JOIN` },
+        { organizationId: a.orgId, sessionId: a.past, membershipId: a.teacher, type: "LEAVE" as const, occurredAt: d("2026-11-10T19:00:00Z"), source: "test", dedupKey: `${a.past}:t:LEAVE` },
+        { organizationId: a.orgId, sessionId: a.past, membershipId: a.otherTeacher, type: "JOIN" as const, occurredAt: d("2026-11-10T17:30:00Z"), source: "test", dedupKey: `${a.past}:o:JOIN` },
+      ]),
+    );
+    const room = await run(a, (tx) => loadRoom(tx, a.teacher, a.past, NOW));
+    expect(room.teachers.map((t) => t.membershipId)).toEqual([a.teacher]);
+    const t = room.teachers[0]!;
+    expect(t.events.map((e) => e.type)).toEqual(["JOIN", "LEAVE"]);
+    expect(t.intervals).toEqual([{ start: d("2026-11-10T17:00:00Z"), end: d("2026-11-10T19:00:00Z") }]);
+    expect(room.learners.map((l) => l.membershipId).sort()).toEqual([a.l1, a.l2].sort());
+  });
+
+  it("Schule B sieht die Lehrkraft-Einwahl von Schule A nicht", async () => {
+    const room = await run(b, (tx) => loadRoom(tx, b.teacher, b.past, NOW));
+    expect(room.teachers.every((t) => t.membershipId === b.teacher)).toBe(true);
+    expect(room.teachers[0]?.events ?? []).toEqual([]);
+  });
+});
+
 describe("Ablauf eines Termins", () => {
   it("zeigt Einwahlen, aber noch keine Bewertung, bis der Vorschlag berechnet ist", async () => {
     const room = await run(a, (tx) => loadRoom(tx, a.teacher, a.past, NOW));

@@ -16,6 +16,7 @@ import {
   lessonSessions,
   memberships,
   organizations,
+  teachingAssignments,
   users,
 } from "@/db/schema";
 import { computePresence, type AttendanceStatus, type Interval } from "@/domain/attendance";
@@ -90,10 +91,20 @@ export type RoomLearner = {
   corrections: { fromStatus: AttendanceStatus; toStatus: AttendanceStatus; reason: string; by: string; at: Date }[];
 };
 
+/** Lehrkraft des Kurses im Einwahlprotokoll: nur Einwahlzeiten, keine Anwesenheitsbewertung. */
+export type RoomTeacher = {
+  membershipId: string;
+  name: string;
+  intervals: Interval[];
+  openEnded: boolean;
+  events: { type: "JOIN" | "LEAVE"; at: Date }[];
+};
+
 export type Room = {
   schoolName: string;
   session: { id: string; startsAt: Date; endsAt: Date; plannedUe: number; mode: "PRESENCE" | "VIRTUAL"; status: "PLANNED" | "LIVE" | "ENDED" | "CLOSED" };
   course: { id: string; name: string; category: string; bamfCourseNumber: string | null };
+  teachers: RoomTeacher[];
   learners: RoomLearner[];
   register: { content: string; updatedAt: Date; author: string } | null;
   over: boolean;
@@ -126,6 +137,15 @@ export async function loadRoom(tx: Tx, me: string, sessionId: string, now: Date 
   const [reg] = await tx.select().from(classRegisterEntries).where(eq(classRegisterEntries.sessionId, s.id));
   const [org] = await tx.select({ name: organizations.name, bamf: organizations.bamfEnabled }).from(organizations).where(eq(organizations.id, actor.organizationId));
 
+  const assigned = await tx.select({ membershipId: teachingAssignments.membershipId }).from(teachingAssignments).where(eq(teachingAssignments.courseId, c.id));
+  const teachers: RoomTeacher[] = [...new Set(assigned.map((x) => x.membershipId))]
+    .map((membershipId) => {
+      const own = events.filter((ev) => ev.membershipId === membershipId).map((ev) => ({ type: ev.type, at: ev.occurredAt }));
+      const p = computePresence(own, { start: s.startsAt, end: s.endsAt });
+      return { membershipId, name: nameOf(membershipId), intervals: p.intervals, openEnded: p.openEnded, events: own };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
+
   const learners: RoomLearner[] = present
     .map((e) => {
       const rec = records.find((r) => r.membershipId === e.membershipId);
@@ -154,6 +174,7 @@ export async function loadRoom(tx: Tx, me: string, sessionId: string, now: Date 
     schoolName: org?.name ?? "",
     session: { id: s.id, startsAt: s.startsAt, endsAt: s.endsAt, plannedUe: s.plannedUe, mode: s.mode, status: s.status },
     course: { id: c.id, name: c.name, category: c.category, bamfCourseNumber: c.bamfCourseNumber },
+    teachers,
     learners,
     register: reg ? { content: reg.content, updatedAt: reg.updatedAt, author: nameOf(reg.authorMembershipId) } : null,
     over: now >= s.endsAt,

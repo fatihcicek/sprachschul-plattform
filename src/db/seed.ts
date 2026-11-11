@@ -84,6 +84,13 @@ export async function seedDemo(db: Db): Promise<boolean> {
     await tx.insert(s.lessonSessions).values({ organizationId: orgId, courseId: course!.id, startsAt: at("2026-11-12", "18:00"), endsAt: at("2026-11-12", "21:15"), plannedUe: 4, mode: "VIRTUAL" });
 
     await tx.insert(s.connectionEvents).values(logFor(orgId, learners, session!.id, "2026-11-10"));
+    // Die Lehrkraft wählt sich kurz vor Beginn ein und bleibt bis zum Ende.
+    await tx.insert(s.connectionEvents).values(
+      (["JOIN", "LEAVE"] as const).map((type) => {
+        const hhmm = type === "JOIN" ? "17:52" : "21:15";
+        return { organizationId: orgId, sessionId: session!.id, membershipId: teacher, type, occurredAt: at("2026-11-10", hhmm), source: "seed", dedupKey: `${session!.id}:teacher:${type}:${hhmm}` };
+      }),
+    );
 
     await addEarlierSession(tx, orgId, course!.id, learners);
     await tx.insert(s.assignments).values([

@@ -51,14 +51,14 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
       <h2 className="sect">Zeitleiste</h2>
       <p className="muted">Blau: eingewählt. Grau: nicht eingewählt. Die Leiste zeigt die Terminzeit von {fmtTime.format(termin.start)} bis {fmtTime.format(termin.end)} Uhr.</p>
       <table className="ptable timeline">
-        <thead><tr><th>Nr.</th><th>Teilnehmende</th><th>Erste Einwahl</th><th className="tl-col">Aktivität</th></tr></thead>
+        <thead><tr><th>Nr.</th><th>Person</th><th>Erste Einwahl</th><th className="tl-col">Aktivität</th></tr></thead>
         <tbody>
-          {room.learners.map((l, n) => {
+          {[...room.teachers.map((p) => ({ ...p, teacher: true })), ...room.learners.map((p) => ({ ...p, teacher: false }))].map((l, n) => {
             const first = firstJoin(l.events, termin);
             return (
               <tr key={l.membershipId}>
                 <td>{n + 1}.</td>
-                <td>{l.name}</td>
+                <td>{l.name}{l.teacher && <div className="muted">Lehrkraft</div>}</td>
                 <td>{first ? <>{fmtTimeSec.format(first.at)}{first.position !== "DURING" && <div className="muted">{first.position === "BEFORE" ? "vor dem Termin" : "nach dem Termin"}</div>}</> : "–"}</td>
                 <td className="tl-col">
                   <div className="tl-bar" role="img" aria-label={l.intervals.length === 0 ? "nicht eingewählt" : `eingewählt ${l.intervals.map((i) => `${fmtTime.format(i.start)} bis ${fmtTime.format(i.end)}`).join(", ")}`}>
@@ -105,7 +105,7 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
       <table className="ptable">
         <thead><tr><th>Teilnehmende</th><th>Ereignisse</th></tr></thead>
         <tbody>
-          {room.learners.map((l) => (
+          {[...room.teachers, ...room.learners].map((l) => (
             <tr key={l.membershipId}>
               <td>{l.name}</td>
               <td>{l.events.length === 0 ? "keine" : l.events.map((e, n) => <span key={n} style={{ marginRight: 14, whiteSpace: "nowrap" }}>{e.type === "JOIN" ? "ein" : "aus"} {fmtTimeSec.format(e.at)}</span>)}</td>
