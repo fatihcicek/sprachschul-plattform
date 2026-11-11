@@ -1,9 +1,9 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { clientIpFrom, parseRegistration } from "@/domain/registration";
+import { parseRegistration } from "@/domain/registration";
+import { clientIp } from "@/server/client-ip";
 import { createMailer, isValidAddress } from "@/server/mailer";
 import { confirmRegistration, requestRegistration, sendPasswordLinkMail } from "@/server/registration";
 import { registrationBaseUrl, registrationOpen, showLinkOnPage } from "@/server/registration-config";
@@ -12,12 +12,6 @@ export type RegisterState = { error?: string; field?: string; done?: true; link?
 
 /** Eingaben nach einem Fehler zurückgeben, damit das Formular nicht leer wird. */
 const keep = (f: FormData) => Object.fromEntries(["schoolName", "firstName", "lastName", "email"].map((k) => [k, String(f.get(k) ?? "")]).concat([["terms", f.get("terms") === "on" ? "on" : ""], ["bamf", f.get("bamf") === "on" ? "on" : ""]]));
-
-async function clientIp(): Promise<string> {
-  const h = await headers();
-  const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? "1");
-  return clientIpFrom(h.get("x-forwarded-for") ?? h.get("x-real-ip"), Number.isInteger(hops) && hops > 0 ? hops : 1);
-}
 
 export async function registerAction(_prev: RegisterState, formData: FormData): Promise<RegisterState> {
   if (!registrationOpen()) return { error: "Die Registrierung ist noch nicht geöffnet." };
