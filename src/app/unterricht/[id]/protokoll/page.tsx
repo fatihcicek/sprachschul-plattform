@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { asSessionUser } from "@/server/context";
-import { timelineSegments } from "@/domain/attendance";
+import { firstJoin, timelineSegments } from "@/domain/attendance";
 import { loadRoom, NotAllowedError, recordExport, TeachingRuleError } from "@/server/teaching";
 import { fmtDate, fmtDateTime, fmtTime, fmtTimeSec, MODE_DE, STATUS_DE } from "../../format";
 import { PrintButton } from "./print";
@@ -31,7 +31,7 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
     (tx, me) => recordExport(tx, me, id, { confirmed: room.learners.filter((l) => l.reviewState === "CONFIRMED").length, unconfirmed: room.learners.filter((l) => l.reviewState !== "CONFIRMED").length }),
     { auditOnly: true },
   );
-  const window = { start: room.session.startsAt, end: room.session.endsAt };
+  const termin = { start: room.session.startsAt, end: room.session.endsAt };
   const unconfirmed = room.learners.some((l) => l.reviewState !== "CONFIRMED");
   return (
     <main className="shell wide protocol">
@@ -49,20 +49,20 @@ export default async function Protokoll({ params }: { params: Promise<{ id: stri
       </dl>
       {unconfirmed && <div className="warn">Nicht alle Anwesenheiten sind bestätigt. Vorschläge sind als „Vorschlag“ gekennzeichnet und noch kein Nachweis.</div>}
       <h2 className="sect">Zeitleiste</h2>
-      <p className="muted">Blau: eingewählt. Grau: nicht eingewählt. Die Leiste zeigt die Terminzeit von {fmtTime.format(window.start)} bis {fmtTime.format(window.end)} Uhr.</p>
+      <p className="muted">Blau: eingewählt. Grau: nicht eingewählt. Die Leiste zeigt die Terminzeit von {fmtTime.format(termin.start)} bis {fmtTime.format(termin.end)} Uhr.</p>
       <table className="ptable timeline">
         <thead><tr><th>Nr.</th><th>Teilnehmende</th><th>Erste Einwahl</th><th className="tl-col">Aktivität</th></tr></thead>
         <tbody>
           {room.learners.map((l, n) => {
-            const first = l.events.find((e) => e.type === "JOIN");
+            const first = firstJoin(l.events, termin);
             return (
               <tr key={l.membershipId}>
                 <td>{n + 1}.</td>
                 <td>{l.name}</td>
-                <td>{first ? fmtTimeSec.format(first.at) : "–"}</td>
+                <td>{first ? <>{fmtTimeSec.format(first.at)}{first.position !== "DURING" && <div className="muted">{first.position === "BEFORE" ? "vor dem Termin" : "nach dem Termin"}</div>}</> : "–"}</td>
                 <td className="tl-col">
                   <div className="tl-bar" role="img" aria-label={l.intervals.length === 0 ? "nicht eingewählt" : `eingewählt ${l.intervals.map((i) => `${fmtTime.format(i.start)} bis ${fmtTime.format(i.end)}`).join(", ")}`}>
-                    {timelineSegments(l.intervals, window).map((seg, k) => (
+                    {timelineSegments(l.intervals, termin).map((seg, k) => (
                       <span key={k} className={`tl-seg ${seg.kind}`} style={{ left: `${seg.leftPct}%`, width: `${seg.widthPct}%` }} title={`${seg.kind === "active" ? "eingewählt" : "nicht eingewählt"} ${fmtTime.format(seg.from)}–${fmtTime.format(seg.to)}`} />
                     ))}
                   </div>

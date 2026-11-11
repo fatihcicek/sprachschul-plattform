@@ -120,16 +120,37 @@ export function timelineSegments(intervals: Interval[], session: Interval): Time
   const total = session.end.getTime() - session.start.getTime();
   if (total <= 0) return [];
   const out: TimelineSegment[] = [];
-  const push = (kind: "active" | "idle", from: number, to: number) => {
+  const lo = session.start.getTime();
+  const hi = session.end.getTime();
+  const push = (kind: "active" | "idle", fromRaw: number, toRaw: number) => {
+    // Auf die Terminzeit begrenzen: Die Leiste darf nie über ihren Rahmen hinausragen.
+    const from = Math.max(lo, Math.min(hi, fromRaw));
+    const to = Math.max(lo, Math.min(hi, toRaw));
     if (to <= from) return;
     out.push({ kind, from: new Date(from), to: new Date(to), leftPct: ((from - session.start.getTime()) / total) * 100, widthPct: ((to - from) / total) * 100 });
   };
-  let cursor = session.start.getTime();
-  for (const i of intervals) {
-    push("idle", cursor, i.start.getTime());
-    push("active", i.start.getTime(), i.end.getTime());
+  let cursor = lo;
+  for (const i of [...intervals].sort((a, b) => a.start.getTime() - b.start.getTime())) {
+    if (i.end.getTime() <= cursor) continue;
+    const start = Math.max(i.start.getTime(), cursor);
+    push("idle", cursor, start);
+    push("active", start, i.end.getTime());
     cursor = i.end.getTime();
   }
-  push("idle", cursor, session.end.getTime());
+  push("idle", cursor, hi);
   return out;
+}
+
+export type FirstJoin = { at: Date; position: "BEFORE" | "DURING" | "AFTER" };
+
+/**
+ * Erstes Einwahlereignis einer Person, auch vor Terminbeginn (wie in üblichen Einwahlprotokollen),
+ * mit Hinweis, wo es zum Termin liegt. Ohne JOIN gibt es keine erste Einwahl.
+ */
+export function firstJoin(events: ConnectionEvent[], session: Interval): FirstJoin | null {
+  const joins = events.filter((e) => e.type === "JOIN").sort((a, b) => a.at.getTime() - b.at.getTime());
+  const first = joins[0];
+  if (!first) return null;
+  const t = first.at.getTime();
+  return { at: first.at, position: t < session.start.getTime() ? "BEFORE" : t >= session.end.getTime() ? "AFTER" : "DURING" };
 }

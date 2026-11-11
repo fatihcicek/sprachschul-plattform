@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computePresence, planStatusChange, proposeStatus, timelineSegments, type ConnectionEvent } from "@/domain/attendance";
+import { computePresence, planStatusChange, proposeStatus, timelineSegments, firstJoin, type ConnectionEvent } from "@/domain/attendance";
 
 const t = (hhmm: string) => new Date(`2026-11-10T${hhmm}:00+01:00`);
 const session = { start: t("18:00"), end: t("21:15") };
@@ -110,5 +110,44 @@ describe("timelineSegments", () => {
   it("ohne Einwahl ein einziger Leerlauf-Abschnitt; ungültiger Termin ergibt nichts", () => {
     expect(timelineSegments([], session).map((s) => s.kind)).toEqual(["idle"]);
     expect(timelineSegments([], { start: t("10:00"), end: t("10:00") })).toEqual([]);
+  });
+});
+
+describe("timelineSegments (Randfälle)", () => {
+  it("ein Intervall über den ganzen Termin ergibt nur ein aktives Segment", () => {
+    const seg = timelineSegments([{ start: t("18:00"), end: t("21:15") }], session);
+    expect(seg.map((x) => x.kind)).toEqual(["active"]);
+    expect(seg[0]?.widthPct).toBeCloseTo(100, 6);
+  });
+
+  it("begrenzt Intervalle außerhalb des Termins und ordnet unsortierte Eingaben", () => {
+    const seg = timelineSegments(
+      [{ start: t("20:00"), end: t("22:00") }, { start: t("17:00"), end: t("18:30") }],
+      session,
+    );
+    expect(seg.map((x) => x.kind)).toEqual(["active", "idle", "active"]);
+    for (const x of seg) {
+      expect(x.leftPct).toBeGreaterThanOrEqual(0);
+      expect(x.leftPct + x.widthPct).toBeLessThanOrEqual(100 + 1e-9);
+    }
+  });
+
+  it("überlappende Intervalle ergeben keine überlappenden Segmente", () => {
+    const seg = timelineSegments([{ start: t("18:00"), end: t("19:30") }, { start: t("19:00"), end: t("20:00") }], session);
+    for (let i = 1; i < seg.length; i++) expect(seg[i]!.from.getTime()).toBeGreaterThanOrEqual(seg[i - 1]!.to.getTime());
+  });
+});
+
+describe("firstJoin", () => {
+  it("meldet die erste Einwahl vor, im und nach dem Termin", () => {
+    expect(firstJoin([join("17:30"), leave("17:50")], session)).toEqual({ at: t("17:30"), position: "BEFORE" });
+    expect(firstJoin([join("18:20"), leave("19:00")], session)?.position).toBe("DURING");
+    expect(firstJoin([join("21:40")], session)?.position).toBe("AFTER");
+  });
+
+  it("nimmt das früheste JOIN und gibt ohne JOIN nichts zurück", () => {
+    expect(firstJoin([join("19:00"), join("18:10")], session)?.at).toEqual(t("18:10"));
+    expect(firstJoin([leave("19:00")], session)).toBeNull();
+    expect(firstJoin([], session)).toBeNull();
   });
 });
