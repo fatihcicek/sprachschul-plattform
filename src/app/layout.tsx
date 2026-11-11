@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Kurswerk",
-  description: "Plattform für Sprachschulen und BAMF-Kursträger",
+  description: "Kursverwaltung für Sprachschulen und Kursträger",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
