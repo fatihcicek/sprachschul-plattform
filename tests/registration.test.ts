@@ -311,6 +311,29 @@ describe("Schutz in der Datenbank", () => {
     await expect(upd({ usedAt: null })).rejects.toThrow();
     await expect(upd({ usedAt: minutes(7002) })).rejects.toThrow();
   });
+  it("die Schule einer Registrierung wird nur mit der Bestätigung gesetzt und ändert sich danach nie", async () => {
+    const r = await ask(input(), `ip-${randomUUID()}`, minutes(7100));
+    if (!r.ok) throw new Error("Anfrage abgelehnt");
+    const h = hashRegistrationToken(tokenFrom(r.link));
+    const upd = (set: Partial<typeof s.registrations.$inferInsert>) =>
+      withRegistrationAccess(db, { tokenHash: h }, (tx) => tx.update(s.registrations).set(set).where(eq(s.registrations.tokenHash, h)));
+    // Vor der Bestätigung: weder allein noch zusammen mit anderen Angaben eine Schule eintragen.
+    await expect(upd({ organizationId: randomUUID() })).rejects.toThrow();
+    // Mit der Bestätigung (usedAt) ist es erlaubt, danach nie wieder.
+    await upd({ usedAt: minutes(7101), organizationId: randomUUID() });
+    await expect(upd({ organizationId: randomUUID() })).rejects.toThrow();
+    await expect(upd({ organizationId: null })).rejects.toThrow();
+  });
+  it("eine Registrierung ohne Bestätigung darf nie eine Schule haben (Prüfregel der Tabelle)", async () => {
+    await expect(
+      withRegistrationAccess(db, { tokenHash: "x".repeat(64) }, (tx) =>
+        tx.insert(s.registrations).values({
+          tokenHash: "x".repeat(64), schoolName: "Test", firstName: "A", lastName: "B", email: "a@b.test",
+          termsVersion: "t", termsAcceptedAt: minutes(7200), expiresAt: minutes(7300), organizationId: randomUUID(),
+        } as never),
+      ),
+    ).rejects.toThrow();
+  });
   it("der Aufräum-Schalter gibt nur abgelaufene Registrierungen frei, nie gültige", async () => {
     const fresh = await ask(input(), `ip-${randomUUID()}`, new Date(Date.now() - 3_600_000));
     if (!fresh.ok) throw new Error("Anfrage abgelehnt");
@@ -450,6 +473,16 @@ describe("Passwort-Link erneut senden", () => {
     expect(await invitationIsValid(db, fresh, later(4))).toMatchObject({ email: i.email });
   });
 
+  it("eine inzwischen deaktivierte Leitung bekommt keinen Link, die Antwort bleibt gleich", async () => {
+    const { token } = await setup();
+    const c = await confirmRegistration(db, token, later(2));
+    if (!c.ok) throw new Error("Bestätigung erwartet");
+    const [org] = await withSlugLookup(db, c.slug, (tx) => tx.select().from(s.organizations));
+    await withOrganization(db, org!.id, (tx) => tx.update(s.memberships).set({ active: false }));
+    const r = await resendPasswordLink(db, token, ctx(later(3)));
+    if ("unknown" in r || r.limited) throw new Error("gleiche Antwort erwartet");
+    expect(await r.complete()).toBeNull();
+  });
   it("ist begrenzt wie „Passwort vergessen“", async () => {
     const { token } = await setup();
     expect((await confirmRegistration(db, token, later(2))).ok).toBe(true);

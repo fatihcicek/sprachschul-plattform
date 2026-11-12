@@ -115,7 +115,7 @@ export async function createInvitation(
   return { token, expiresAt };
 }
 
-/** Einladungslink erzeugen, mit Rechteprüfung: Leitung bei allen, Verwaltung nur bei Lehrkräften und Teilnehmenden. */
+/** Einladungslink erzeugen, mit Rechteprüfung: Leitung bei allen, Verwaltung nur bei Teilnehmenden. */
 export async function inviteAsActor(tx: Tx, actorMembershipId: string, targetMembershipId: string, now: Date = new Date()) {
   const actor = await loadActor(tx, actorMembershipId);
   const [target] = await tx.select().from(memberships).where(eq(memberships.id, targetMembershipId));

@@ -8,6 +8,7 @@ import { auditEvents, memberships, users } from "@/db/schema";
 import { MAX_IMPORT_ROWS, MAX_NAME_LENGTH } from "@/domain/people-import";
 import { ADDABLE_ROLES, canAddPerson, type Role } from "@/domain/permissions";
 import { loadActor, NotAllowedError } from "@/server/actor";
+import { isValidAddress } from "@/server/mailer";
 
 export type NewPerson = { email: string; firstName: string; lastName: string; role: Role };
 
@@ -23,8 +24,8 @@ export async function createPerson(tx: Tx, organizationId: string, p: NewPerson)
 /** Eingabe passt nicht (Pflichtfeld fehlt, E-Mail doppelt …). Die Meldung ist für die Person am Bildschirm gedacht. */
 export class PeopleInputError extends Error {}
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CONTROL = /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/;
+// Wie bei der Registrierung: keine Steuerzeichen, unsichtbaren Zeichen, Textrichtungs-Umschalter oder spitzen Klammern in Namen.
+const BAD_NAME = /[\u0000-\u001f\u007f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff<>]/;
 
 const peopleSchema = z
   .array(
@@ -59,8 +60,9 @@ export async function addPeople(tx: Tx, actorMembershipId: string, raw: unknown)
   people.forEach((p, i) => {
     const row = people.length > 1 ? `Zeile ${i + 1}: ` : "";
     if (!p.firstName || !p.lastName) errors.push(`${row}Vor- oder Nachname fehlt.`);
-    else if (p.firstName.length > MAX_NAME_LENGTH || p.lastName.length > MAX_NAME_LENGTH || CONTROL.test(p.firstName) || CONTROL.test(p.lastName)) errors.push(`${row}Name ungültig oder zu lang.`);
-    if (!EMAIL.test(p.email) || p.email.length > 254 || CONTROL.test(p.email)) errors.push(`${row}E-Mail ungültig: ${p.email.slice(0, 80) || "(leer)"}`);
+    else if (p.firstName.length > MAX_NAME_LENGTH || p.lastName.length > MAX_NAME_LENGTH || BAD_NAME.test(p.firstName) || BAD_NAME.test(p.lastName)) errors.push(`${row}Name ungültig oder zu lang.`);
+    // Dieselbe Regel wie beim Mailversand: Nur Adressen, an die später auch ein Passwort-Link gehen kann.
+    if (p.email.length > 254 || !isValidAddress(p.email)) errors.push(`${row}E-Mail ungültig: ${p.email.slice(0, 80) || "(leer)"}`);
     else if (seen.has(p.email)) errors.push(`${row}E-Mail doppelt eingetragen: ${p.email}`);
     seen.add(p.email);
   });
@@ -69,7 +71,17 @@ export async function addPeople(tx: Tx, actorMembershipId: string, raw: unknown)
   const taken = await tx.select({ email: users.email }).from(users).where(inArray(users.email, people.map((p) => p.email)));
   if (taken.length) throw new PeopleInputError(`Diese E-Mail gibt es an der Schule schon: ${taken.map((t) => t.email).slice(0, 10).join(", ")}.`);
 
-  for (const p of people) await createPerson(tx, actor.organizationId, p);
+  const created: { membershipId: string; role: Role }[] = [];
+  try {
+    // Teilvorgang: Legt gleichzeitig jemand dieselbe E-Mail an, scheitert nur dieser Schritt sauber.
+    await tx.transaction(async (sp) => {
+      for (const p of people) created.push({ membershipId: (await createPerson(sp, actor.organizationId, p)).membershipId, role: p.role });
+    });
+  } catch (e) {
+    const err = e as { code?: string; cause?: { code?: string } };
+    if (err?.code === "23505" || err?.cause?.code === "23505") throw new PeopleInputError("Eine dieser E-Mail-Adressen wurde gerade von jemand anderem angelegt. Bitte lade die Seite neu.");
+    throw e;
+  }
   const count = (role: Role) => people.filter((p) => p.role === role).length;
   await tx.insert(auditEvents).values({
     organizationId: actor.organizationId,
@@ -77,7 +89,8 @@ export async function addPeople(tx: Tx, actorMembershipId: string, raw: unknown)
     action: "person.created",
     entity: "organization",
     entityId: actor.organizationId,
-    meta: { anzahl: people.length, teilnehmende: count("LEARNER"), lehrkraefte: count("TEACHER"), verwaltung: count("STAFF") },
+    // Wer genau angelegt wurde, bleibt belegbar: Mitgliedschaften mit Rolle, keine Namen oder Adressen.
+    meta: { anzahl: people.length, teilnehmende: count("LEARNER"), lehrkraefte: count("TEACHER"), verwaltung: count("STAFF"), personen: created },
   });
   return { created: people.length };
 }

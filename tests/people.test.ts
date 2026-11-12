@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, withOrganization, type Db, type Tx } from "@/db/client";
 import * as s from "@/db/schema";
 import { canAddPerson } from "@/domain/permissions";
+import { enforceAccess, isReadOnlyViolation } from "@/server/access";
 import { NotAllowedError } from "@/server/actor";
 import { addPeople, createPerson, PeopleInputError } from "@/server/people";
 
@@ -94,6 +95,32 @@ describe("Personen anlegen", () => {
     await expect(run(a, (tx) => addPeople(tx, a.learner, [person("tn5@alpha.test")]))).rejects.toBeInstanceOf(NotAllowedError);
     const all = await emails(a);
     for (const e of ["tn3@alpha.test", "lk2@alpha.test", "tn4@alpha.test", "tn5@alpha.test"]) expect(all).not.toContain(e);
+  });
+
+  it("ohne Recht gibt es immer dieselbe Antwort: auch mit einer vorhandenen Adresse verrät die Meldung nichts", async () => {
+    // Verwaltung darf keine Lehrkraft und keine Verwaltung einzeln anlegen, mit neuer wie mit vorhandener Adresse.
+    for (const role of ["TEACHER", "STAFF"]) {
+      await expect(run(a, (tx) => addPeople(tx, a.staff, [person("neu-rolle@alpha.test", role)]))).rejects.toBeInstanceOf(NotAllowedError);
+      await expect(run(a, (tx) => addPeople(tx, a.staff, [person("eins@alpha.test", role)]))).rejects.toBeInstanceOf(NotAllowedError);
+    }
+    // Eine Lehrkraft erfährt auch nicht, dass die Adresse schon vergeben ist.
+    await expect(run(a, (tx) => addPeople(tx, a.teacher, [person("eins@alpha.test")]))).rejects.toBeInstanceOf(NotAllowedError);
+  });
+
+  it("nach abgelaufener Testzeit ist die Transaktion schreibgeschützt: niemand wird angelegt", async () => {
+    const id = randomUUID();
+    const admin = await withOrganization(db, id, async (tx) => {
+      await tx.insert(s.organizations).values({ id, name: "Abgelaufen", slug: `abgelaufen-${id.slice(0, 6)}`, status: "TRIAL", trialEndsAt: new Date("2026-10-01T00:00:00Z") });
+      return (await createPerson(tx, id, { email: `l@${id.slice(0, 6)}.test`, firstName: "L", lastName: "L", role: "ADMIN" })).membershipId;
+    });
+    const err = await withOrganization(db, id, async (tx) => {
+      await enforceAccess(tx, new Date("2026-11-01T00:00:00Z"));
+      await addPeople(tx, admin, [person("spaet@abgelaufen.test")]);
+    }).catch((e) => e);
+    expect(isReadOnlyViolation(err)).toBe(true);
+    const all = await withOrganization(db, id, async (tx) => (await tx.select({ email: s.users.email }).from(s.users)).map((u) => u.email));
+    expect(all).not.toContain("spaet@abgelaufen.test");
+    expect(all).toHaveLength(1); // Lesen bleibt möglich
   });
 
   it("eine weitere Leitung oder unbekannte Rolle wird abgelehnt, auch für die Leitung", async () => {
