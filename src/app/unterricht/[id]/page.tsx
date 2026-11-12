@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
-import { ADMIN_NAV, Shell, TEACHER_NAV } from "@/app/shell";
+import { navFor, Shell } from "@/app/shell";
 import { PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { loadRoom, NotAllowedError, TeachingRuleError } from "@/server/teaching";
@@ -43,7 +43,7 @@ export default async function Kursraum({ params }: { params: Promise<{ id: strin
   }));
   const canClose = room.over && !closed && room.can.review && room.can.write;
   return (
-    <Shell name={data.name} home="/unterricht" nav={data.role === "TEACHER" ? TEACHER_NAV : ADMIN_NAV} wide>
+    <Shell name={data.name} home="/unterricht" nav={navFor(data.role)} wide>
       <PageHead
         back={{ href: "/unterricht", label: "Alle Termine" }}
         title={room.course.name}

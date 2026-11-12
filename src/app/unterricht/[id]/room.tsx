@@ -40,7 +40,7 @@ export function Attendance({ sessionId, learners, started, over, closed, canRevi
     <div className="card">
       <div className="row">
         <strong>Anwesenheit</strong>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {canReview && started && !closed && (
             <button type="button" className="ghost" disabled={pending} onClick={() => run(() => proposeAttendanceAction(sessionId))}>
               {hasRecords ? "Neu aus Einwahlprotokoll berechnen" : "Aus Einwahlprotokoll berechnen"}

@@ -41,9 +41,9 @@ export default async function Lehrkraft() {
       <PageHead title="Aufgaben und Abgaben" lead="Gestellte Aufgaben mit den Abgaben der Teilnehmenden. Unten stellst du eine neue Aufgabe." />
       {data.items.length === 0 && <Empty title="Noch keine Aufgaben">Stelle unten die erste Aufgabe. Die Teilnehmenden des Kurses sehen sie sofort.</Empty>}
       {data.items.map(({ assignment: a, submissions }) => (
-        <section key={a.id} className="group">
+        <section key={a.id} className="group" aria-labelledby={`a-${a.id}`}>
           <div className="group-head">
-            <strong>{a.title}</strong>
+            <h2 id={`a-${a.id}`}>{a.title}</h2>
             <span className="muted">{formatDue(a.dueAt)} · {submissions.length} {submissions.length === 1 ? "Abgabe" : "Abgaben"}</span>
           </div>
           {submissions.length === 0 && <p className="muted group-empty">Noch keine Abgaben.</p>}

@@ -21,7 +21,8 @@ export type ResetOutcome = { limited: true } | { limited: false; complete: () =>
 export async function requestPasswordReset(
   db: Db,
   input: { school: string; email: string },
-  ctx: { ip: string; secret: string; baseUrl: string; now?: Date },
+  /** replaceFreshLink: auch einen frischen Link ersetzen. Nur für Aufrufer, die den Postfachzugriff schon nachgewiesen haben. */
+  ctx: { ip: string; secret: string; baseUrl: string; now?: Date; replaceFreshLink?: boolean },
 ): Promise<ResetOutcome> {
   const now = ctx.now ?? new Date();
   const slug = input.school.trim().toLowerCase();
@@ -47,11 +48,11 @@ export async function requestPasswordReset(
   });
   if (!allowed) return { limited: true };
 
-  return { limited: false, complete: () => createLink(db, slug, email, ctx.baseUrl, now) };
+  return { limited: false, complete: () => createLink(db, slug, email, ctx.baseUrl, now, ctx.replaceFreshLink === true) };
 }
 
 /** Sucht das Konto und legt den Link an. Läuft nach der Antwort; gibt die Mail zurück oder nichts. */
-async function createLink(db: Db, slug: string, email: string, baseUrl: string, now: Date): Promise<Mail | null> {
+async function createLink(db: Db, slug: string, email: string, baseUrl: string, now: Date, replaceFresh: boolean): Promise<Mail | null> {
   if (!slug || !email || slug.length > 80 || email.length > 254 || CONTROL.test(slug) || CONTROL.test(email)) return null;
   const [org] = await withSlugLookup(db, slug, (tx) => tx.select({ id: organizations.id }).from(organizations));
   if (!org) return null;
@@ -68,7 +69,7 @@ async function createLink(db: Db, slug: string, email: string, baseUrl: string, 
       .select({ id: invitations.id })
       .from(invitations)
       .where(and(eq(invitations.membershipId, m.id), isNull(invitations.usedAt), gt(invitations.expiresAt, now), gt(invitations.createdAt, new Date(now.getTime() - RESET_REUSE_MINUTES * 60_000))));
-    if (fresh) return null;
+    if (fresh && !replaceFresh) return null;
     const { token } = await createInvitation(tx, org.id, m.id, null, now);
     await tx.insert(auditEvents).values({ organizationId: org.id, actorMembershipId: m.id, action: "account.password_reset_requested", entity: "membership", entityId: m.id });
     return token;

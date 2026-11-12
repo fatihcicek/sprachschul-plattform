@@ -40,12 +40,15 @@ export const ADMIN_NAV: NavLink[] = [
   { href: "/verwaltung/einstellungen", label: "Einstellungen", icon: "settings" },
 ];
 
-export const LEARNER_NAV: NavLink[] = [{ href: "/aufgaben", label: "Aufgaben", icon: "tasks" }];
-
-/** Navigation passend zur Rolle: Leitung und Verwaltung sehen alles, Lehrkräfte Unterricht und Aufgaben. */
-export const navFor = (role: string | undefined): NavLink[] => (role === "ADMIN" || role === "STAFF" ? ADMIN_NAV : role === "TEACHER" ? TEACHER_NAV : LEARNER_NAV);
-
 export const TEACHER_NAV: NavLink[] = [
   { href: "/unterricht", label: "Unterricht", icon: "lessons" },
   { href: "/lehrkraft", label: "Aufgaben", icon: "tasks" },
 ];
+
+/** Verwaltung: wie die Leitung, aber ohne Aufgaben (Aufgaben stellen und bewerten nur Lehrkräfte und Leitung). */
+export const STAFF_NAV: NavLink[] = ADMIN_NAV.filter((n) => n.href !== "/lehrkraft");
+
+export const LEARNER_NAV: NavLink[] = [{ href: "/aufgaben", label: "Aufgaben", icon: "tasks" }];
+
+/** Navigation passend zur Rolle. Sie blendet nur aus; jede Seite prüft die Rechte selbst. */
+export const navFor = (role: string | undefined): NavLink[] => (role === "ADMIN" ? ADMIN_NAV : role === "STAFF" ? STAFF_NAV : role === "TEACHER" ? TEACHER_NAV : LEARNER_NAV);

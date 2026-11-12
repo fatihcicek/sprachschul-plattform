@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
-import { ADMIN_NAV, Shell } from "@/app/shell";
+import { navFor, Shell } from "@/app/shell";
 import { PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { loadOnboarding, loadToday } from "@/server/overview";
@@ -19,9 +19,9 @@ const PHASE = { UPCOMING: "kommt noch", RUNNING: "läuft jetzt", OVER: "vorbei" 
 
 export default async function Heute() {
   const data = await asSessionUser(async (tx, me) => {
-    const [p] = await tx.select({ f: users.firstName, l: users.lastName }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
+    const [p] = await tx.select({ f: users.firstName, l: users.lastName, role: memberships.role }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
     try {
-      return { name: `${p!.f} ${p!.l}`, today: await loadToday(tx, me), onboarding: await loadOnboarding(tx, me) };
+      return { name: `${p!.f} ${p!.l}`, role: p!.role, today: await loadToday(tx, me), onboarding: await loadOnboarding(tx, me) };
     } catch (e) {
       if (e instanceof NotAllowedError) return null;
       throw e;
@@ -31,7 +31,7 @@ export default async function Heute() {
   const { lessons, openAttendance, missingRegister } = data.today;
   const open = openAttendance.length + missingRegister.length;
   return (
-    <Shell name={data.name} home="/verwaltung/heute" nav={ADMIN_NAV}>
+    <Shell name={data.name} home="/verwaltung/heute" nav={navFor(data.role)}>
       <PageHead title="Heute" lead={fmtDay.format(new Date())} />
       {!data.onboarding.complete && (
         <section className="onboard" aria-labelledby="onboard-title">

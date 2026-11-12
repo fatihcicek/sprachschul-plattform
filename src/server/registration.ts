@@ -4,7 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { and, count, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
 import { INVITATION_DAYS } from "@/domain/password";
-import { withRegistrationAccess, type Db } from "@/db/client";
+import { withOrganization, withRegistrationAccess, type Db } from "@/db/client";
 import { auditEvents, organizations, registrationAttempts, registrations } from "@/db/schema";
 import {
   CONFIRM_HOURS,
@@ -22,6 +22,7 @@ import {
   mailboxKey,
 } from "@/domain/registration";
 import type { Mailer } from "@/server/mailer";
+import { requestPasswordReset, type ResetOutcome } from "@/server/password-reset";
 import { createInvitation } from "@/server/auth";
 import { createPerson } from "@/server/people";
 
@@ -124,7 +125,7 @@ export async function confirmRegistration(db: Db, token: string, now: Date = new
       .where(and(eq(registrations.tokenHash, hash), isNull(registrations.usedAt), gt(registrations.expiresAt, now)))
       .for("update");
     if (!row) return { ok: false } as const;
-    await tx.update(registrations).set({ usedAt: now }).where(eq(registrations.id, row.id));
+    await tx.update(registrations).set({ usedAt: now, organizationId }).where(eq(registrations.id, row.id));
 
     // Kürzel mit Zufallsende; bei der seltenen Kollision neu würfeln (Teilvorgang, damit die Transaktion lebt).
     let slug = "";
@@ -192,4 +193,27 @@ export async function sendPasswordLinkMail(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Passwort-Link erneut senden, wenn die Mail nach der Bestätigung nicht ankam. Wer den Bestätigungslink noch hat
+ * (und er noch gilt), hat das Postfach nachgewiesen. Der Link geht trotzdem nur per E-Mail raus, nie auf die Seite.
+ * Es gelten dieselben Begrenzungen wie bei „Passwort vergessen“.
+ */
+export async function resendPasswordLink(db: Db, token: string, ctx: { ip: string; secret: string; baseUrl: string; now?: Date }): Promise<ResetOutcome | { unknown: true }> {
+  const now = ctx.now ?? new Date();
+  if (!isRegistrationToken(token)) return { unknown: true };
+  const hash = hashRegistrationToken(token);
+  const row = await withRegistrationAccess(db, { tokenHash: hash }, async (tx) => {
+    const [r] = await tx
+      .select({ email: registrations.email, organizationId: registrations.organizationId })
+      .from(registrations)
+      .where(and(eq(registrations.tokenHash, hash), sql`${registrations.usedAt} is not null`, gt(registrations.expiresAt, now)));
+    return r ?? null;
+  });
+  if (!row?.organizationId) return { unknown: true };
+  const orgId = row.organizationId;
+  const [org] = await withOrganization(db, orgId, (tx) => tx.select({ slug: organizations.slug }).from(organizations).where(eq(organizations.id, orgId)));
+  if (!org) return { unknown: true };
+  return requestPasswordReset(db, { school: org.slug, email: row.email }, { ...ctx, now, replaceFreshLink: true });
 }

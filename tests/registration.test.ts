@@ -12,7 +12,8 @@ import * as s from "@/db/schema";
 import { clientIpFrom, mailboxKey, passwordLinkMail, confirmationMail, hashRegistrationToken, isRegistrationToken, newRegistrationToken, parseRegistration, rateKey, REGISTRATION_LIMITS, slugFromName } from "@/domain/registration";
 import { invitationIsValid } from "@/server/auth";
 import { isValidAddress, memoryMailer, type Mailer } from "@/server/mailer";
-import { confirmRegistration, previewRegistration, requestRegistration, sendPasswordLinkMail, wasConfirmed } from "@/server/registration";
+import { confirmRegistration, previewRegistration, requestRegistration, resendPasswordLink, sendPasswordLinkMail, wasConfirmed } from "@/server/registration";
+import { RESET_LIMITS } from "@/domain/registration";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 const baseUrl = process.env.DATABASE_URL;
@@ -409,5 +410,53 @@ describe("Versand des Passwort-Links", () => {
     const t0 = Date.now();
     expect(await sendPasswordLinkMail(hanging, "https://kurswerk.test", confirmed, 50)).toBe(false);
     expect(Date.now() - t0).toBeLessThan(1000);
+  });
+});
+
+describe("Passwort-Link erneut senden", () => {
+  const ctx = (now: Date, ip = `ip-${randomUUID()}`) => ({ ip, secret: SECRET, baseUrl: "https://kurswerk.test", now });
+  const later = (min: number) => new Date(T0.getTime() + min * 60_000);
+  const setup = async () => {
+    const i = input({ email: `neu-${randomUUID().slice(0, 8)}@schule.test` });
+    const r = await ask(i, undefined, T0);
+    if (!r.ok) throw new Error("Anfrage erwartet");
+    const token = tokenFrom(r.link);
+    return { i, token };
+  };
+
+  it("vor der Bestätigung, mit falschem oder abgelaufenem Link gibt es nichts", async () => {
+    const { token } = await setup();
+    expect(await resendPasswordLink(db, token, ctx(later(1)))).toEqual({ unknown: true });
+    expect(await resendPasswordLink(db, "kein-token", ctx(later(1)))).toEqual({ unknown: true });
+    expect(await resendPasswordLink(db, newRegistrationToken().token, ctx(later(1)))).toEqual({ unknown: true });
+    const c = await confirmRegistration(db, token, later(2));
+    expect(c.ok).toBe(true);
+    // Der Bestätigungslink gilt 24 Stunden; danach ist auch das erneute Senden vorbei.
+    expect(await resendPasswordLink(db, token, ctx(later(25 * 60)))).toEqual({ unknown: true });
+  });
+
+  it("nach der Bestätigung: neuer Link per Mail an die Adresse der Registrierung, der alte Link erlischt", async () => {
+    const { i, token } = await setup();
+    const c = await confirmRegistration(db, token, later(2));
+    if (!c.ok) throw new Error("Bestätigung erwartet");
+    const r = await resendPasswordLink(db, token, ctx(later(3)));
+    if ("unknown" in r || r.limited) throw new Error("Link erwartet");
+    const mail = await r.complete();
+    expect(mail?.to).toBe(i.email);
+    expect(mail?.text).toContain(c.slug);
+    const fresh = /\/einladung\/(\S+)/.exec(mail!.text)![1]!;
+    expect(fresh).not.toBe(c.invitationToken);
+    expect(await invitationIsValid(db, c.invitationToken, later(4))).toBeNull();
+    expect(await invitationIsValid(db, fresh, later(4))).toMatchObject({ email: i.email });
+  });
+
+  it("ist begrenzt wie „Passwort vergessen“", async () => {
+    const { token } = await setup();
+    expect((await confirmRegistration(db, token, later(2))).ok).toBe(true);
+    for (let n = 0; n < RESET_LIMITS.perEmail; n++) {
+      const r = await resendPasswordLink(db, token, ctx(later(5)));
+      expect("limited" in r && r.limited).toBe(false);
+    }
+    expect(await resendPasswordLink(db, token, ctx(later(5)))).toEqual({ limited: true });
   });
 });

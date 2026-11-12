@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
-import { ADMIN_NAV, Shell, TEACHER_NAV } from "@/app/shell";
+import { navFor, Shell } from "@/app/shell";
 import { Empty, PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { listMySessions, NotAllowedError, type SessionListItem } from "@/server/teaching";
@@ -31,7 +31,7 @@ export default async function Unterricht() {
     ["Zurückliegend", data.items.filter((i) => localDay(i.startsAt) < today).reverse()],
   ];
   return (
-    <Shell name={data.name} home="/unterricht" nav={data.role === "TEACHER" ? TEACHER_NAV : ADMIN_NAV}>
+    <Shell name={data.name} home="/unterricht" nav={navFor(data.role)}>
       <PageHead title="Unterricht" lead="Termine der nächsten zwei Wochen und der letzten 30 Tage." />
       {data.items.length === 0 && <Empty title="Keine Termine in diesem Zeitraum">Termine entstehen beim Anlegen eines Kurses.</Empty>}
       {groups.filter(([, items]) => items.length > 0).map(([title, items]) => (

@@ -36,7 +36,7 @@ export function NavItems({ nav }: { nav: NavLink[] }) {
   useEffect(() => {
     const el = ref.current;
     const active = el?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (el && active && el.scrollWidth > el.clientWidth) el.scrollLeft = active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2;
+    if (el && active && el.scrollWidth > el.clientWidth) el.scrollLeft = active.offsetLeft - el.offsetLeft - (el.clientWidth - active.offsetWidth) / 2;
   }, [current]);
   return (
     <nav className="nav" aria-label="Hauptnavigation" ref={ref}>
