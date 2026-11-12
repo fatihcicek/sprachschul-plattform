@@ -1,27 +1,24 @@
 # Einstellungen der Geheimnissuche. Die Standardregeln von gitleaks bleiben vollständig aktiv.
 # Jede Ausnahme gehört mit Begründung hierher, nie pauschal ganze Ordner.
+#
+# Hinweis: Die Schreibweise [allowlist] gilt für alle gitleaks-Versionen. Die neuere Form [[allowlists]]
+# (mit targetRules) gibt es erst ab 8.25; die eingesetzte Action bringt 8.24.3 mit und ignoriert sie stillschweigend.
 title = "Kurswerk"
 
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "Erfundene Werte für Tests und Entwicklung"
+[allowlist]
+description = "Erfundene Testwerte und bekannte, zufällig erzeugte Build-Schlüssel"
 regexes = [
   '''test-geheimnis-0123456789''',               # Testschlüssel in tests/
   '''entwicklung-nur-lokal-bitte-ersetzen''',     # Platzhalter in .env.example, in Produktion abgelehnt
 ]
 paths = [
   '''(^|/)package-lock\.json$''',
-]
-
-# Next.js erzeugt bei jedem Build zufällige Schlüssel (Vorschau-Modus, Verschlüsselung der Serveraktionen) und legt sie
-# ins Paket. Das Paket liegt auf dem Zweig "deploy". Diese Werte sind keine Zugangsdaten zu fremden Diensten, aber sie
-# dürfen nicht öffentlich sein: Darum ist das Repository privat. Nur diese drei Dateien, nur diese eine Regel.
-[[allowlists]]
-description = "Zufällige Build-Schlüssel von Next.js im Paket auf dem Zweig deploy"
-targetRules = ["generic-api-key"]
-paths = [
+  # Next.js erzeugt bei jedem Build zufällige Schlüssel (Vorschau-Modus, Verschlüsselung der Serveraktionen) und legt sie
+  # ins Paket auf dem Zweig "deploy". Das sind keine Zugangsdaten zu fremden Diensten, aber sie dürfen nicht öffentlich
+  # sein: Darum ist das Repository privat. Nur diese drei Dateien.
   '''(^|/)\.next/prerender-manifest\.json$''',
   '''(^|/)\.next/server/preview-props\.json$''',
   '''(^|/)\.next/server/server-reference-manifest\.json$''',
