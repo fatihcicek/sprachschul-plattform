@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 export type NavIconName = "today" | "lessons" | "courses" | "people" | "tasks" | "settings";
-type NavLink = { href: string; label: string; icon?: NavIconName };
+export type NavLink = { href: string; label: string; icon?: NavIconName };
 
 /** Schlichte Linienzeichen, nur zur Orientierung; der Text steht immer daneben. */
 const ICONS: Record<NavIconName, string> = {
@@ -30,8 +31,15 @@ export function NavItems({ nav }: { nav: NavLink[] }) {
   const current = nav
     .filter((n) => path === n.href || path.startsWith(n.href + "/"))
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  // Am Handy scrollt die Leiste waagerecht: den aktuellen Eintrag in den sichtbaren Bereich holen.
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    const active = el?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (el && active && el.scrollWidth > el.clientWidth) el.scrollLeft = active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2;
+  }, [current]);
   return (
-    <nav className="nav" aria-label="Hauptnavigation">
+    <nav className="nav" aria-label="Hauptnavigation" ref={ref}>
       {nav.map((n) => (
         <Link key={n.href} href={n.href} className={n.href === current ? "navlink active" : "navlink"} aria-current={n.href === current ? "page" : undefined}>
           {n.icon && <NavIcon name={n.icon} />}

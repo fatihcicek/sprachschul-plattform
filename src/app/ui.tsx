@@ -1,12 +1,17 @@
 // Gemeinsame Bausteine für alle Seiten nach der Anmeldung: Seitenkopf, Leerzustand, Personenkürzel.
+import Link from "next/link";
 import type { ReactNode } from "react";
 
-/** Seitenkopf: Titel, optional ein erklärender Satz und rechts die wichtigste Handlung der Seite. */
-export function PageHead({ title, lead, action }: { title: string; lead?: ReactNode; action?: ReactNode }) {
+/** Seitenkopf: optional Rückweg, Titel mit Statusmarke, ein erklärender Satz und rechts die wichtigste Handlung der Seite. */
+export function PageHead({ title, lead, action, back, status }: { title: string; lead?: ReactNode; action?: ReactNode; back?: { href: string; label: string }; status?: ReactNode }) {
   return (
     <header className="pagehead">
       <div>
-        <h1>{title}</h1>
+        {back && <Link href={back.href} className="pagehead-back">‹ {back.label}</Link>}
+        <div className="pagehead-title">
+          <h1>{title}</h1>
+          {status}
+        </div>
         {lead && <p className="pagehead-lead">{lead}</p>}
       </div>
       {action && <div className="pagehead-action">{action}</div>}
@@ -30,7 +35,7 @@ export const initials = (name: string) =>
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
+    .map((w) => Array.from(w)[0]!.toUpperCase())
     .join("");
 
 /** Rundes Kürzel für Personenlisten (nur Schmuck, der Name steht daneben). */

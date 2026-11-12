@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { users, memberships } from "@/db/schema";
-import { Shell } from "@/app/shell";
+import { LEARNER_NAV, Shell } from "@/app/shell";
+import { Empty, PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { listForLearner } from "@/server/assignments";
 import { STATUS_LABEL, formatDue } from "@/app/format";
@@ -14,20 +15,24 @@ export default async function Aufgaben() {
     return { name: `${p!.f} ${p!.l}`, items: await listForLearner(tx, me) };
   });
   return (
-    <Shell name={name} home="/aufgaben">
-      <h1>Meine Aufgaben</h1>
-      {items.length === 0 && <p className="muted">Noch keine Aufgaben.</p>}
-      {items.map(({ assignment: a, status }) => (
-        <Link key={a.id} href={`/aufgaben/${a.id}`} style={{ textDecoration: "none" }}>
-          <div className="card row">
-            <div>
-              <strong>{a.title}</strong>
-              <div className="muted">{formatDue(a.dueAt)}</div>
-            </div>
-            <span className={`badge ${status}`}>{STATUS_LABEL[status]}</span>
-          </div>
-        </Link>
-      ))}
+    <Shell name={name} home="/aufgaben" nav={LEARNER_NAV}>
+      <PageHead title="Meine Aufgaben" />
+      {items.length === 0 && <Empty title="Noch keine Aufgaben">Sobald deine Lehrkraft eine Aufgabe stellt, erscheint sie hier.</Empty>}
+      {items.length > 0 && (
+        <ul className="list">
+          {items.map(({ assignment: a, status }) => (
+            <li key={a.id}>
+              <Link href={`/aufgaben/${a.id}`} className="list-row list-link">
+                <div className="grow">
+                  <strong>{a.title}</strong>
+                  <div className="muted">{formatDue(a.dueAt)}</div>
+                </div>
+                <span className={`badge ${status}`}>{STATUS_LABEL[status]}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </Shell>
   );
 }

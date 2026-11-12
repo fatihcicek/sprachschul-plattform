@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
 import { ADMIN_NAV, Shell } from "@/app/shell";
+import { PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { listPeople } from "@/server/courses";
 import { loadBamfEnabled } from "@/server/features";
@@ -23,7 +24,7 @@ export default async function KursAnlegen() {
   if (!data) redirect("/");
   return (
     <Shell name={data.name} home="/verwaltung" nav={ADMIN_NAV} wide>
-      <h1>Kurs anlegen</h1>
+      <PageHead back={{ href: "/verwaltung", label: "Alle Kurse" }} title="Kurs anlegen" />
       <CourseWizard teachers={data.people.teachers} learners={data.people.learners} bamfEnabled={data.bamf} />
     </Shell>
   );

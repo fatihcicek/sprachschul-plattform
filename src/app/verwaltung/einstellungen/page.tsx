@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
 import { can } from "@/domain/permissions";
 import { ADMIN_NAV, Shell } from "@/app/shell";
+import { PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { loadActor } from "@/server/actor";
 import { getCurrentAccess } from "@/server/current-access";
@@ -23,7 +24,7 @@ export default async function Einstellungen() {
   const readOnly = (await getCurrentAccess())?.access.mode === "READ_ONLY";
   return (
     <Shell name={data.name} home="/verwaltung" nav={ADMIN_NAV}>
-      <h1>Einstellungen</h1>
+      <PageHead title="Einstellungen" lead="Gilt für die ganze Schule." />
       <BamfSwitch enabled={data.bamf} canChange={data.canChange} readOnly={readOnly} />
     </Shell>
   );

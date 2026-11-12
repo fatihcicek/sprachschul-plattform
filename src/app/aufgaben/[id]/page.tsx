@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
-import { Shell } from "@/app/shell";
+import { LEARNER_NAV, Shell } from "@/app/shell";
 import { asSessionUser } from "@/server/context";
 import { getForLearner } from "@/server/assignments";
 import { formatDue, formatTime, STATUS_LABEL } from "@/app/format";
@@ -25,8 +25,8 @@ export default async function Aufgabe({ params }: { params: Promise<{ id: string
   const { assignment, submission, versions, name } = data;
   const status = submission?.status ?? "DRAFT";
   return (
-    <Shell name={name} home="/aufgaben">
-      <p><Link href="/aufgaben" className="muted">← Alle Aufgaben</Link></p>
+    <Shell name={name} home="/aufgaben" nav={LEARNER_NAV}>
+      <p><Link href="/aufgaben" className="pagehead-back">‹ Alle Aufgaben</Link></p>
       <div className="card">
         <div className="row">
           <h1 style={{ margin: 0 }}>{assignment.title}</h1>
