@@ -1,40 +1,52 @@
-import { NavItems } from "@/app/nav-items";
+import { NavItems, type NavIconName } from "@/app/nav-items";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { logout } from "@/app/actions";
 import { TrialBanner } from "@/app/trial-banner";
 
-export type NavLink = { href: string; label: string };
+export type NavLink = { href: string; label: string; icon?: NavIconName };
 
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+
+/** Rahmen der App: Seitenleiste mit Navigation und Person (am Handy eine Leiste oben), daneben der Inhalt. */
 export function Shell({ name, home, nav = [], wide = false, children }: { name: string; home: string; nav?: NavLink[]; wide?: boolean; children: ReactNode }) {
   return (
-    <main className={wide ? "shell wide" : "shell"}>
-      <div className="top">
-        <div className="row" style={{ gap: 20 }}>
-          <Link href={home} className="brand">Kurswerk</Link>
-          <NavItems nav={nav} />
-        </div>
-        <form action={logout} className="row" style={{ gap: 12 }}>
-          <span className="muted">{name}</span>
+    <div className="app">
+      <aside className="sidebar">
+        <Link href={home} className="brand">Kurswerk</Link>
+        <NavItems nav={nav} />
+        <form action={logout} className="sidebar-user">
+          <span className="avatar" aria-hidden="true">{initials(name)}</span>
+          <span className="sidebar-name">{name}</span>
           <button className="ghost" type="submit">Abmelden</button>
         </form>
-      </div>
-      <TrialBanner />
-      {children}
-    </main>
+      </aside>
+      <main className="app-main">
+        <div className={wide ? "shell wide" : "shell"}>
+          <TrialBanner />
+          {children}
+        </div>
+      </main>
+    </div>
   );
 }
 
 export const ADMIN_NAV: NavLink[] = [
-  { href: "/verwaltung/heute", label: "Heute" },
-  { href: "/unterricht", label: "Unterricht" },
-  { href: "/verwaltung", label: "Kurse" },
-  { href: "/verwaltung/personen", label: "Personen" },
-  { href: "/lehrkraft", label: "Aufgaben" },
-  { href: "/verwaltung/einstellungen", label: "Einstellungen" },
+  { href: "/verwaltung/heute", label: "Heute", icon: "today" },
+  { href: "/unterricht", label: "Unterricht", icon: "lessons" },
+  { href: "/verwaltung", label: "Kurse", icon: "courses" },
+  { href: "/verwaltung/personen", label: "Personen", icon: "people" },
+  { href: "/lehrkraft", label: "Aufgaben", icon: "tasks" },
+  { href: "/verwaltung/einstellungen", label: "Einstellungen", icon: "settings" },
 ];
 
 export const TEACHER_NAV: NavLink[] = [
-  { href: "/unterricht", label: "Unterricht" },
-  { href: "/lehrkraft", label: "Aufgaben" },
+  { href: "/unterricht", label: "Unterricht", icon: "lessons" },
+  { href: "/lehrkraft", label: "Aufgaben", icon: "tasks" },
 ];

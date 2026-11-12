@@ -37,16 +37,16 @@ export default async function Heute() {
       <h2 className="sect">Unterricht heute</h2>
       {lessons.length === 0 && <div className="card muted">Heute findet kein Unterricht statt.</div>}
       {lessons.map((l) => (
-        <Link key={l.sessionId} href={`/unterricht/${l.sessionId}`} className="card linkcard">
-          <div className="row">
-            <div>
-              <strong>{l.courseName}</strong>
-              <div className="muted">
-                {fmtTime.format(l.startsAt)}–{fmtTime.format(l.endsAt)} Uhr · {l.mode === "VIRTUAL" ? "online" : "Präsenz"} · {l.learners} Teilnehmende
-              </div>
-            </div>
-            <span className={`badge phase-${l.phase}`}>{PHASE[l.phase]}</span>
+        <Link key={l.sessionId} href={`/unterricht/${l.sessionId}`} className={`card linkcard lesson${l.phase === "RUNNING" ? " running" : ""}`}>
+          <div className="lesson-time">
+            <b>{fmtTime.format(l.startsAt)}</b>
+            <span>bis {fmtTime.format(l.endsAt)}</span>
           </div>
+          <div className="lesson-body">
+            <strong>{l.courseName}</strong>
+            <div className="muted">{l.mode === "VIRTUAL" ? "online" : "Präsenz"} · {l.learners} Teilnehmende</div>
+          </div>
+          <span className={`badge phase-${l.phase}`}>{PHASE[l.phase]}</span>
         </Link>
       ))}
 
