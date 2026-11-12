@@ -1,0 +1,175 @@
+{
+  "node": {
+    "008347e64bf989436b6c7726f297e10a6f9679df3f": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "logout",
+      "filename": "src/app/actions.ts"
+    },
+    "4002361bac5ae3d2d87f3b607001fe4bad5de04e73": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "createCourseAction",
+      "filename": "src/app/actions.ts"
+    },
+    "4017816833130d90f1fd038eff28998e639072f2e8": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "createAssignmentAction",
+      "filename": "src/app/actions.ts"
+    },
+    "4037725d638f4c0adeb051e53bf70cb3481b93127c": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "inviteAction",
+      "filename": "src/app/actions.ts"
+    },
+    "4038f73effd2aea50d8c6b2c78f84e39ce6e0c9793": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "confirmAttendanceAction",
+      "filename": "src/app/actions.ts"
+    },
+    "4045b1e45dbfff1612f3306d432165a365c729ddd6": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "addPeopleAction",
+      "filename": "src/app/actions.ts"
+    },
+    "404af8022d453f88a1dfd52f9e219decb46bf8ef7f": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "login",
+      "filename": "src/app/actions.ts"
+    },
+    "4064d5b8a3134af54ebc3f66706f74685255b17256": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "closeSessionAction",
+      "filename": "src/app/actions.ts"
+    },
+    "409f516f52ced658ad3c437461fd03cd490ec1b8cf": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "proposeAttendanceAction",
+      "filename": "src/app/actions.ts"
+    },
+    "40a104ddad544d5c14d073e03a8a97104ee6948a07": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "setBamfAction",
+      "filename": "src/app/actions.ts"
+    },
+    "60094b5aa965c8e503701aad2a20951c2313901f2c": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "saveDraftAction",
+      "filename": "src/app/actions.ts"
+    },
+    "6055766586c76d1b4ee52fcbd9d2addd2d20dda5b3": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "passwordLogin",
+      "filename": "src/app/actions.ts"
+    },
+    "606048584b8bfe5428d42555a7b92d6da546e6ba25": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "feedbackAction",
+      "filename": "src/app/actions.ts"
+    },
+    "609c4b8e0595d69e3822f118cbf20ed78bcdfa86c2": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "submitAction",
+      "filename": "src/app/actions.ts"
+    },
+    "708535f52f918fcb584823624288a7edd3f8142e91": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "saveRegisterAction",
+      "filename": "src/app/actions.ts"
+    },
+    "70996db8f5e4a2087e2223783f925910aa38b520dd": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "setPasswordAction",
+      "filename": "src/app/actions.ts"
+    },
+    "78aaf12ac6b5ab72fcdff28d21f2cce5f8b3b92990": {
+      "workers": {
+        "app/unterricht/[id]/page": {
+          "moduleId": 84173,
+          "async": true
+        }
+      },
+      "exportedName": "setStatusAction",
+      "filename": "src/app/actions.ts"
+    }
+  },
+  "edge": {}
+}

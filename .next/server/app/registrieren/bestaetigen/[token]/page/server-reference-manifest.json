@@ -1,0 +1,25 @@
+{
+  "node": {
+    "40b2d4bea61846d1e48b8edc75d4a3578b65a49321": {
+      "workers": {
+        "app/registrieren/bestaetigen/[token]/page": {
+          "moduleId": 91777,
+          "async": true
+        }
+      },
+      "exportedName": "confirmRegistrationAction",
+      "filename": "src/app/registrieren/actions.ts"
+    },
+    "406e062b62f6c08f0e8a9b368d2dbd5a4b9f26f44f": {
+      "workers": {
+        "app/registrieren/bestaetigen/[token]/page": {
+          "moduleId": 91777,
+          "async": true
+        }
+      },
+      "exportedName": "resendPasswordLinkAction",
+      "filename": "src/app/registrieren/actions.ts"
+    }
+  },
+  "edge": {}
+}

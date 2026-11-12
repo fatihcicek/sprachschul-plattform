@@ -1,0 +1,15 @@
+{
+  "node": {
+    "60a3f7ff79e638f0ed0a8fb9fbeff0f1bd72e7fd0a": {
+      "workers": {
+        "app/passwort-vergessen/page": {
+          "moduleId": 27254,
+          "async": true
+        }
+      },
+      "exportedName": "resetPasswordAction",
+      "filename": "src/app/passwort-vergessen/actions.ts"
+    }
+  },
+  "edge": {}
+}

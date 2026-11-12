@@ -1,0 +1,15 @@
+{
+  "node": {
+    "70996db8f5e4a2087e2223783f925910aa38b520dd": {
+      "workers": {
+        "app/einladung/[token]/page": {
+          "moduleId": 55069,
+          "async": true
+        }
+      },
+      "exportedName": "setPasswordAction",
+      "filename": "src/app/actions.ts"
+    }
+  },
+  "edge": {}
+}

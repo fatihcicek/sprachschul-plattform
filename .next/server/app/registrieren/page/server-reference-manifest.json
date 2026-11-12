@@ -1,0 +1,15 @@
+{
+  "node": {
+    "6083fe64b0523a43073d8999c1417a247483269f3f": {
+      "workers": {
+        "app/registrieren/page": {
+          "moduleId": 95253,
+          "async": true
+        }
+      },
+      "exportedName": "registerAction",
+      "filename": "src/app/registrieren/actions.ts"
+    }
+  },
+  "edge": {}
+}

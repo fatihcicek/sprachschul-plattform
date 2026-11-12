@@ -1,0 +1,225 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ],
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+    }
+  ],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/aufgaben/[id]",
+      "regex": "^/aufgaben/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/aufgaben/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/einladung/[token]",
+      "regex": "^/einladung/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtoken": "nxtPtoken"
+      },
+      "namedRegex": "^/einladung/(?<nxtPtoken>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/lehrkraft/abgaben/[id]",
+      "regex": "^/lehrkraft/abgaben/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/lehrkraft/abgaben/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/registrieren/bestaetigen/[token]",
+      "regex": "^/registrieren/bestaetigen/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtoken": "nxtPtoken"
+      },
+      "namedRegex": "^/registrieren/bestaetigen/(?<nxtPtoken>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/unterricht/[id]",
+      "regex": "^/unterricht/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/unterricht/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/unterricht/[id]/protokoll",
+      "regex": "^/unterricht/([^/]+?)/protokoll(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/unterricht/(?<nxtPid>[^/]+?)/protokoll(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/api/health",
+      "regex": "^/api/health(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/health(?:/)?$"
+    },
+    {
+      "page": "/aufgaben",
+      "regex": "^/aufgaben(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/aufgaben(?:/)?$"
+    },
+    {
+      "page": "/datenschutz",
+      "regex": "^/datenschutz(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/datenschutz(?:/)?$"
+    },
+    {
+      "page": "/impressum",
+      "regex": "^/impressum(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/impressum(?:/)?$"
+    },
+    {
+      "page": "/lehrkraft",
+      "regex": "^/lehrkraft(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/lehrkraft(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/nutzungsbedingungen",
+      "regex": "^/nutzungsbedingungen(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nutzungsbedingungen(?:/)?$"
+    },
+    {
+      "page": "/passwort-vergessen",
+      "regex": "^/passwort\\-vergessen(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/passwort\\-vergessen(?:/)?$"
+    },
+    {
+      "page": "/registrieren",
+      "regex": "^/registrieren(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/registrieren(?:/)?$"
+    },
+    {
+      "page": "/unterricht",
+      "regex": "^/unterricht(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/unterricht(?:/)?$"
+    },
+    {
+      "page": "/verwaltung",
+      "regex": "^/verwaltung(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/verwaltung(?:/)?$"
+    },
+    {
+      "page": "/verwaltung/einstellungen",
+      "regex": "^/verwaltung/einstellungen(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/verwaltung/einstellungen(?:/)?$"
+    },
+    {
+      "page": "/verwaltung/heute",
+      "regex": "^/verwaltung/heute(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/verwaltung/heute(?:/)?$"
+    },
+    {
+      "page": "/verwaltung/kurse/neu",
+      "regex": "^/verwaltung/kurse/neu(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/verwaltung/kurse/neu(?:/)?$"
+    },
+    {
+      "page": "/verwaltung/personen",
+      "regex": "^/verwaltung/personen(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/verwaltung/personen(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

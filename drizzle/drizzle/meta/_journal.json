@@ -1,0 +1,125 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794269946344,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794269946952,
+      "tag": "0001_sicherheit",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794272041711,
+      "tag": "0002_aufgaben",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794272042355,
+      "tag": "0003_aufgaben_sicherheit",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794272159903,
+      "tag": "0004_anmeldung_demo",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794304930922,
+      "tag": "0005_personen_je_schule",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794305105374,
+      "tag": "0006_kurs_anlegen",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794317089830,
+      "tag": "0007_anmeldung_konten",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794317090546,
+      "tag": "0008_anmeldung_sicherheit",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794323287571,
+      "tag": "0009_unterricht_klassenbuch",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794323288350,
+      "tag": "0010_unterricht_sicherheit",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794341987968,
+      "tag": "0011_registrierung_tabellen",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794342014866,
+      "tag": "0012_registrierung_sicherheit",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794344147093,
+      "tag": "0013_testzeit_schutz",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794345678947,
+      "tag": "0014_bamf_schalter",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794473134996,
+      "tag": "0015_registrierung_schule",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794473602569,
+      "tag": "0016_registrierung_schule_schutz",
+      "breakpoints": true
+    }
+  ]
+}
