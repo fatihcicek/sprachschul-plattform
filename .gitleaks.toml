@@ -13,5 +13,5 @@ regexes = [
   '''entwicklung-nur-lokal-bitte-ersetzen''',     # Platzhalter in .env.example, in Produktion abgelehnt
 ]
 paths = [
-  '''package-lock\.json''',
+  '''(^|/)package-lock\.json$''',
 ]

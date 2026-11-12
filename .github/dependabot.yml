@@ -4,8 +4,11 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 3
+    groups:
+      kleine-updates:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -17,7 +17,8 @@ permissions:
 
 concurrency:
   group: sicherheit-${{ github.ref }}
-  cancel-in-progress: true
+  # Nur bei Pull Requests abbrechen: ein neuer Push ersetzt den alten Lauf. Auf main darf nie ein Lauf ausfallen.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   geheimnisse:
@@ -34,6 +35,19 @@ jobs:
           GITLEAKS_CONFIG: .gitleaks.toml
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+      # TEMPORÄR (wird im nächsten Commit entfernt): einmalige Prüfung der ganzen Historie, geschwärzt.
+      - name: Einmalige Vollprüfung der Historie
+        if: always()
+        run: /tmp/gitleaks-8.24.3/gitleaks detect --config .gitleaks.toml --redact -v --exit-code=0 --no-banner --report-format=json --report-path=/tmp/full.json || true
+      - name: Ergebnis der Vollprüfung (nur Anzahl, Regel, Datei, Commit)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          r=json.load(open("/tmp/full.json"))
+          print("Funde in der gesamten Historie:", len(r))
+          for f in r: print(f["RuleID"], f["File"], f["StartLine"], f["Commit"][:8])
+          PY
 
   abhaengigkeiten:
     name: Abhängigkeiten (npm audit)

@@ -6,12 +6,15 @@
 #
 # Erlaubt: neue Migrationsdateien, neue Schnappschüsse, neue Einträge am Ende des Journals.
 # Aufruf: scripts/check-migrations-unchanged.sh [Basis, Standard origin/main]
+# Voraussetzung: Migrationen liegen in drizzle/ (der Test tests/migrations.test.ts stellt das mit drizzle.config.ts sicher).
 set -euo pipefail
 
 base="${1:-origin/main}"
 git rev-parse --verify --quiet "$base" >/dev/null || { echo "Basis $base nicht gefunden (vollständige Historie holen: fetch-depth 0)."; exit 2; }
 
 fail=0
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
 
 # 1. SQL-Dateien und Schnappschüsse: nur hinzufügen.
 bad=$(git diff --name-status --no-renames "$base"...HEAD -- 'drizzle/*.sql' 'drizzle/meta/*_snapshot.json' | grep -v '^A' || true)
@@ -23,8 +26,8 @@ fi
 
 # 2. Journal: die bisherigen Einträge müssen unverändert vorn stehen bleiben.
 if git cat-file -e "$base:drizzle/meta/_journal.json" 2>/dev/null; then
-  git show "$base:drizzle/meta/_journal.json" > "${TMPDIR:-/tmp}/journal-base.json"
-  node - "${TMPDIR:-/tmp}/journal-base.json" drizzle/meta/_journal.json <<'EOF' || fail=1
+  git show "$base:drizzle/meta/_journal.json" > "$tmp"
+  node - "$tmp" drizzle/meta/_journal.json <<'EOF' || fail=1
 const fs = require("fs");
 const [basePath, headPath] = process.argv.slice(2);
 const base = JSON.parse(fs.readFileSync(basePath, "utf8")).entries;
