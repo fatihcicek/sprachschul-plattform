@@ -6,7 +6,9 @@ import { ADMIN_NAV, Shell } from "@/app/shell";
 import { Empty, PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { listCourses } from "@/server/courses";
+import { loadBamfEnabled } from "@/server/features";
 import { NotAllowedError } from "@/server/actor";
+import { courseListMeta } from "@/domain/course-display";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,7 @@ export default async function Verwaltung({ searchParams }: { searchParams: Promi
   const data = await asSessionUser(async (tx, me) => {
     const [p] = await tx.select({ f: users.firstName, l: users.lastName }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
     try {
-      return { name: `${p!.f} ${p!.l}`, items: await listCourses(tx, me) };
+      return { name: `${p!.f} ${p!.l}`, items: await listCourses(tx, me), bamf: await loadBamfEnabled(tx) };
     } catch (e) {
       if (e instanceof NotAllowedError) return null;
       throw e;
@@ -46,8 +48,7 @@ export default async function Verwaltung({ searchParams }: { searchParams: Promi
               <div className="grow">
                 <strong className="list-title">{c.name}</strong>
                 <div className="muted">
-                  {c.category}
-                  {c.bamfCourseNumber ? ` · BAMF ${c.bamfCourseNumber}` : ""} · {c.mode === "VIRTUAL" ? "online" : "Präsenz"}
+                  {courseListMeta(c, data.bamf)}
                 </div>
               </div>
               <dl className="facts">

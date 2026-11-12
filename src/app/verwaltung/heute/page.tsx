@@ -5,7 +5,7 @@ import { memberships, users } from "@/db/schema";
 import { ADMIN_NAV, Shell } from "@/app/shell";
 import { PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
-import { loadToday } from "@/server/overview";
+import { loadOnboarding, loadToday } from "@/server/overview";
 import { NotAllowedError } from "@/server/actor";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export default async function Heute() {
   const data = await asSessionUser(async (tx, me) => {
     const [p] = await tx.select({ f: users.firstName, l: users.lastName }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
     try {
-      return { name: `${p!.f} ${p!.l}`, today: await loadToday(tx, me) };
+      return { name: `${p!.f} ${p!.l}`, today: await loadToday(tx, me), onboarding: await loadOnboarding(tx, me) };
     } catch (e) {
       if (e instanceof NotAllowedError) return null;
       throw e;
@@ -33,6 +33,27 @@ export default async function Heute() {
   return (
     <Shell name={data.name} home="/verwaltung/heute" nav={ADMIN_NAV}>
       <PageHead title="Heute" lead={fmtDay.format(new Date())} />
+      {!data.onboarding.complete && (
+        <section className="onboard" aria-labelledby="onboard-title">
+          <div className="onboard-head">
+            <h2 id="onboard-title">Erste Schritte</h2>
+            <span className="muted">{data.onboarding.doneCount} von {data.onboarding.steps.length} erledigt</span>
+          </div>
+          <ol>
+            {data.onboarding.steps.map((st) => (
+              <li key={st.key} className={st.done ? "done" : undefined}>
+                <span className="onboard-mark" aria-hidden="true">{st.done ? "✓" : ""}</span>
+                <div className="grow">
+                  <strong>{st.title}</strong>
+                  <span className="sr-only">{st.done ? " (erledigt)" : " (offen)"}</span>
+                  {!st.done && <div className="muted">{st.text}</div>}
+                </div>
+                {!st.done && <Link href={st.href} className="btn small">{st.action}</Link>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <h2 className="sect">Unterricht heute</h2>
       {lessons.length === 0 && <div className="card muted">Heute findet kein Unterricht statt.</div>}
