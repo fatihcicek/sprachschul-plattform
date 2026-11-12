@@ -72,6 +72,9 @@ export const registrations = pgTable("registrations", {
   bamfEnabled: boolean("bamf_enabled").notNull().default(false),
   expiresAt: ts("expires_at").notNull(),
   usedAt: ts("used_at"),
+  // Die Schule, die aus dieser Registrierung entstanden ist (erst nach der Bestätigung gesetzt).
+  // Damit lässt sich der Passwort-Link erneut senden, solange der Bestätigungslink noch gilt.
+  organizationId: uuid("organization_id"),
   createdAt: createdAt(),
 });
 

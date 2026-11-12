@@ -2,9 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
-import { ADMIN_NAV, Shell } from "@/app/shell";
+import { navFor, Shell } from "@/app/shell";
+import { PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
-import { loadToday } from "@/server/overview";
+import { loadOnboarding, loadToday } from "@/server/overview";
 import { NotAllowedError } from "@/server/actor";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +19,9 @@ const PHASE = { UPCOMING: "kommt noch", RUNNING: "läuft jetzt", OVER: "vorbei" 
 
 export default async function Heute() {
   const data = await asSessionUser(async (tx, me) => {
-    const [p] = await tx.select({ f: users.firstName, l: users.lastName }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
+    const [p] = await tx.select({ f: users.firstName, l: users.lastName, role: memberships.role }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
     try {
-      return { name: `${p!.f} ${p!.l}`, today: await loadToday(tx, me) };
+      return { name: `${p!.f} ${p!.l}`, role: p!.role, today: await loadToday(tx, me), onboarding: await loadOnboarding(tx, me) };
     } catch (e) {
       if (e instanceof NotAllowedError) return null;
       throw e;
@@ -30,23 +31,43 @@ export default async function Heute() {
   const { lessons, openAttendance, missingRegister } = data.today;
   const open = openAttendance.length + missingRegister.length;
   return (
-    <Shell name={data.name} home="/verwaltung/heute" nav={ADMIN_NAV}>
-      <h1>Heute</h1>
-      <p className="muted" style={{ marginTop: -12 }}>{fmtDay.format(new Date())}</p>
+    <Shell name={data.name} home="/verwaltung/heute" nav={navFor(data.role)}>
+      <PageHead title="Heute" lead={fmtDay.format(new Date())} />
+      {!data.onboarding.complete && (
+        <section className="onboard" aria-labelledby="onboard-title">
+          <div className="onboard-head">
+            <h2 id="onboard-title">Erste Schritte</h2>
+            <span className="muted">{data.onboarding.doneCount} von {data.onboarding.steps.length} erledigt</span>
+          </div>
+          <ol>
+            {data.onboarding.steps.map((st) => (
+              <li key={st.key} className={st.done ? "done" : undefined}>
+                <span className="onboard-mark" aria-hidden="true">{st.done ? "✓" : ""}</span>
+                <div className="grow">
+                  <strong>{st.title}</strong>
+                  <span className="sr-only">{st.done ? " (erledigt)" : " (offen)"}</span>
+                  {!st.done && <div className="muted">{st.text}</div>}
+                </div>
+                {!st.done && <Link href={st.href} className="btn small">{st.action}</Link>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <h2 className="sect">Unterricht heute</h2>
       {lessons.length === 0 && <div className="card muted">Heute findet kein Unterricht statt.</div>}
       {lessons.map((l) => (
-        <Link key={l.sessionId} href={`/unterricht/${l.sessionId}`} className="card linkcard">
-          <div className="row">
-            <div>
-              <strong>{l.courseName}</strong>
-              <div className="muted">
-                {fmtTime.format(l.startsAt)}–{fmtTime.format(l.endsAt)} Uhr · {l.mode === "VIRTUAL" ? "online" : "Präsenz"} · {l.learners} Teilnehmende
-              </div>
-            </div>
-            <span className={`badge phase-${l.phase}`}>{PHASE[l.phase]}</span>
+        <Link key={l.sessionId} href={`/unterricht/${l.sessionId}`} className={`card linkcard lesson${l.phase === "RUNNING" ? " running" : ""}`}>
+          <div className="lesson-time">
+            <b>{fmtTime.format(l.startsAt)}</b>
+            <span>bis {fmtTime.format(l.endsAt)}</span>
           </div>
+          <div className="lesson-body">
+            <strong>{l.courseName}</strong>
+            <div className="muted">{l.mode === "VIRTUAL" ? "online" : "Präsenz"} · {l.learners} Teilnehmende</div>
+          </div>
+          <span className={`badge phase-${l.phase}`}>{PHASE[l.phase]}</span>
         </Link>
       ))}
 

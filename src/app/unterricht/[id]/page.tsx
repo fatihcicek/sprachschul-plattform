@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
-import { ADMIN_NAV, Shell, TEACHER_NAV } from "@/app/shell";
+import { navFor, Shell } from "@/app/shell";
+import { PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { loadRoom, NotAllowedError, TeachingRuleError } from "@/server/teaching";
 import { CloseButton, Attendance, Register, type LearnerView } from "./room";
@@ -42,15 +43,13 @@ export default async function Kursraum({ params }: { params: Promise<{ id: strin
   }));
   const canClose = room.over && !closed && room.can.review && room.can.write;
   return (
-    <Shell name={data.name} home="/unterricht" nav={data.role === "TEACHER" ? TEACHER_NAV : ADMIN_NAV} wide>
-      <p><Link href="/unterricht" className="muted">← Alle Termine</Link></p>
-      <div className="row">
-        <h1 style={{ marginBottom: 4 }}>{room.course.name}</h1>
-        <span className={`badge ${closed ? "RETURNED" : room.over ? "open" : ""}`}>{closed ? "abgeschlossen" : room.over ? "offen" : started ? "läuft" : "geplant"}</span>
-      </div>
-      <p className="muted" style={{ marginTop: 0 }}>
-        {fmtDate.format(room.session.startsAt)}, {fmtTime.format(room.session.startsAt)}–{fmtTime.format(room.session.endsAt)} Uhr · {room.session.plannedUe} UE · {MODE_DE[room.session.mode]}
-      </p>
+    <Shell name={data.name} home="/unterricht" nav={navFor(data.role)} wide>
+      <PageHead
+        back={{ href: "/unterricht", label: "Alle Termine" }}
+        title={room.course.name}
+        status={<span className={`badge ${closed ? "RETURNED" : room.over ? "open" : ""}`}>{closed ? "abgeschlossen" : room.over ? "offen" : started ? "läuft" : "geplant"}</span>}
+        lead={<>{fmtDate.format(room.session.startsAt)}, {fmtTime.format(room.session.startsAt)}–{fmtTime.format(room.session.endsAt)} Uhr · {room.session.plannedUe} UE · {MODE_DE[room.session.mode]}</>}
+      />
       <Attendance sessionId={room.session.id} learners={learners} started={started} over={room.over} closed={closed} canReview={room.can.review} canCorrect={room.can.correct} />
       <Register
         sessionId={room.session.id}

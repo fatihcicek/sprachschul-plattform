@@ -5,7 +5,8 @@ import { getDb } from "@/db";
 import { parseRegistration } from "@/domain/registration";
 import { clientIp } from "@/server/client-ip";
 import { createMailer, isValidAddress } from "@/server/mailer";
-import { confirmRegistration, requestRegistration, sendPasswordLinkMail } from "@/server/registration";
+import { after } from "next/server";
+import { confirmRegistration, requestRegistration, resendPasswordLink, sendPasswordLinkMail } from "@/server/registration";
 import { registrationBaseUrl, registrationOpen, showLinkOnPage } from "@/server/registration-config";
 
 export type RegisterState = { error?: string; field?: string; done?: true; link?: string; values?: Record<string, string> } | undefined;
@@ -54,4 +55,34 @@ export async function confirmRegistrationAction(token: string): Promise<{ error:
   // Zusätzlich per Mail, damit nichts verloren geht, wenn die Person den Tab schließt. Scheitert der Versand, geht es trotzdem weiter.
   await sendPasswordLinkMail(createMailer(), registrationBaseUrl(), r);
   redirect(`/einladung/${r.invitationToken}`);
+}
+
+export type ResendState = { error?: string; done?: true } | undefined;
+
+/** Passwort-Link erneut per E-Mail senden (für die Seite „schon bestätigt“). Der Link erscheint nie auf der Seite. */
+export async function resendPasswordLinkAction(token: string): Promise<ResendState> {
+  const failed = { error: "Das geht gerade nicht. Bitte versuche es später noch einmal." };
+  if (!registrationOpen()) return { error: "Die Registrierung ist noch nicht geöffnet." };
+  const baseUrl = registrationBaseUrl();
+  const secret = process.env.SESSION_SECRET;
+  if (!baseUrl || !secret || secret.length < 16) return failed;
+  let r;
+  try {
+    r = await resendPasswordLink(await getDb(), token, { ip: await clientIp(), secret, baseUrl });
+  } catch (e) {
+    console.error("Link erneut senden fehlgeschlagen", e instanceof Error ? e.name : "Fehler");
+    return failed;
+  }
+  if ("unknown" in r) return { error: "Dieser Link ist ungültig oder abgelaufen. Nutze „Passwort vergessen“ auf der Anmeldeseite." };
+  if (r.limited) return { error: "Zu viele Versuche. Bitte versuche es in einer Stunde noch einmal." };
+  const complete = r.complete;
+  after(async () => {
+    try {
+      const mail = await complete();
+      if (mail) await createMailer().send(mail);
+    } catch (e) {
+      console.error("Link erneut senden: Mail fehlgeschlagen", e instanceof Error ? e.name : "Fehler");
+    }
+  });
+  return { done: true };
 }

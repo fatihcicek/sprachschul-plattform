@@ -10,7 +10,10 @@ import { createDb, withOrganization, type Db, type Tx } from "@/db/client";
 import * as s from "@/db/schema";
 import { createPerson } from "@/server/people";
 import { NotAllowedError } from "@/server/actor";
-import { loadToday } from "@/server/overview";
+import { loadOnboarding, loadToday } from "@/server/overview";
+import { createInvitation } from "@/server/auth";
+import { onboardingFrom } from "@/domain/onboarding";
+import { courseListMeta } from "@/domain/course-display";
 import { attendanceIsOpen, phaseOf } from "@/domain/today";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -174,5 +177,55 @@ describe("Heute", () => {
     expect(t.lessons.every((l) => l.courseName === "Kurs alpha")).toBe(true);
     // Mit dem Konto von B in der Sitzung von A kommt nichts durch.
     await expect(run(a, (tx) => loadToday(tx, b.admin, NOW))).rejects.toThrow("Unbekanntes Konto");
+  });
+});
+
+describe("Erste Schritte", () => {
+  it("leitet aus Zählwerten die Checkliste ab", () => {
+    const none = onboardingFrom({ courses: 0, teachersWithAccess: 0, learnersWithAccess: 0 });
+    expect(none.steps.map((x) => x.done)).toEqual([false, false, false]);
+    expect(none.complete).toBe(false);
+    const all = onboardingFrom({ courses: 2, teachersWithAccess: 1, learnersWithAccess: 5 });
+    expect(all.doneCount).toBe(3);
+    expect(all.complete).toBe(true);
+  });
+
+  it("zählt Kurs, eingeladene Lehrkraft und eingeladene Teilnehmende der eigenen Schule", async () => {
+    const d = await school("delta");
+    const e = await school("epsilon");
+    const first = await run(d, (tx) => loadOnboarding(tx, d.admin, NOW));
+    expect(first.steps.map((x) => [x.key, x.done])).toEqual([["course", true], ["teacher", false], ["learners", false]]);
+    await run(d, (tx) => createInvitation(tx, d.orgId, d.teacher, d.admin, NOW));
+    expect((await run(d, (tx) => loadOnboarding(tx, d.admin, NOW))).steps[1]!.done).toBe(true);
+    await run(d, (tx) => createInvitation(tx, d.orgId, d.learner, d.admin, NOW));
+    expect((await run(d, (tx) => loadOnboarding(tx, d.admin, NOW))).complete).toBe(true);
+    // Schule E bleibt unberührt: Einladungen von D zählen dort nicht.
+    expect((await run(e, (tx) => loadOnboarding(tx, e.admin, NOW))).steps.map((x) => x.done)).toEqual([true, false, false]);
+  });
+
+  it("abgelaufene Einladungen und deaktivierte Personen zählen nicht", async () => {
+    const z = await school("zeta");
+    await run(z, (tx) => createInvitation(tx, z.orgId, z.teacher, z.admin, new Date(NOW.getTime() - 30 * 86_400_000)));
+    expect((await run(z, (tx) => loadOnboarding(tx, z.admin, NOW))).steps[1]!.done).toBe(false);
+    await run(z, async (tx) => {
+      await createInvitation(tx, z.orgId, z.learner, z.admin, NOW);
+      await tx.update(s.memberships).set({ active: false }).where(eq(s.memberships.id, z.learner));
+    });
+    expect((await run(z, (tx) => loadOnboarding(tx, z.admin, NOW))).steps[2]!.done).toBe(false);
+  });
+
+  it("Verwaltung darf, Lehrkraft und Teilnehmende nicht", async () => {
+    await expect(run(a, (tx) => loadOnboarding(tx, a.staff, NOW))).resolves.toBeDefined();
+    await expect(run(a, (tx) => loadOnboarding(tx, a.teacher, NOW))).rejects.toBeInstanceOf(NotAllowedError);
+    await expect(run(a, (tx) => loadOnboarding(tx, a.learner, NOW))).rejects.toBeInstanceOf(NotAllowedError);
+  });
+});
+
+describe("Kursliste", () => {
+  it("zeigt die BAMF-Kursnummer nur bei eingeschalteten BAMF-Funktionen", () => {
+    const c = { category: "BSK B2", bamfCourseNumber: "2026-06552", mode: "VIRTUAL" as const };
+    expect(courseListMeta(c, true)).toBe("BSK B2 · BAMF 2026-06552 · online");
+    expect(courseListMeta(c, false)).toBe("BSK B2 · online");
+    expect(courseListMeta({ ...c, bamfCourseNumber: null, mode: "PRESENCE" }, true)).toBe("BSK B2 · Präsenz");
   });
 });

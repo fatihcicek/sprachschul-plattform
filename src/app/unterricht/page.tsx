@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
-import { ADMIN_NAV, Shell, TEACHER_NAV } from "@/app/shell";
+import { navFor, Shell } from "@/app/shell";
+import { Empty, PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { listMySessions, NotAllowedError, type SessionListItem } from "@/server/teaching";
 import { localDay } from "@/domain/schedule";
@@ -30,23 +31,29 @@ export default async function Unterricht() {
     ["Zurückliegend", data.items.filter((i) => localDay(i.startsAt) < today).reverse()],
   ];
   return (
-    <Shell name={data.name} home="/unterricht" nav={data.role === "TEACHER" ? TEACHER_NAV : ADMIN_NAV}>
-      <h1>Unterricht</h1>
-      {data.items.length === 0 && <div className="card muted">Keine Termine in den nächsten zwei Wochen oder den letzten 30 Tagen.</div>}
+    <Shell name={data.name} home="/unterricht" nav={navFor(data.role)}>
+      <PageHead title="Unterricht" lead="Termine der nächsten zwei Wochen und der letzten 30 Tage." />
+      {data.items.length === 0 && <Empty title="Keine Termine in diesem Zeitraum">Termine entstehen beim Anlegen eines Kurses.</Empty>}
       {groups.filter(([, items]) => items.length > 0).map(([title, items]) => (
         <section key={title}>
           <h2 className="sect">{title}</h2>
-          {items.map((i) => (
-            <Link key={i.sessionId} href={`/unterricht/${i.sessionId}`} className="card linkcard">
-              <div className="row">
-                <div>
-                  <strong>{i.courseName}</strong>
-                  <div className="muted">{fmtShortDate.format(i.startsAt)}, {fmtTime.format(i.startsAt)}–{fmtTime.format(i.endsAt)} Uhr · {MODE_DE[i.mode]}</div>
-                </div>
-                <span className={`badge ${state(i) === "offen" ? "open" : state(i) === "läuft" ? "phase-RUNNING" : state(i) === "abgeschlossen" ? "RETURNED" : ""}`}>{state(i)}</span>
-              </div>
-            </Link>
-          ))}
+          <ul className="list">
+            {items.map((i) => (
+              <li key={i.sessionId}>
+                <Link href={`/unterricht/${i.sessionId}`} className="list-row list-link lesson">
+                  <div className="lesson-time">
+                    <b>{fmtTime.format(i.startsAt)}</b>
+                    <span>bis {fmtTime.format(i.endsAt)}</span>
+                  </div>
+                  <div className="lesson-body">
+                    <strong>{i.courseName}</strong>
+                    <div className="muted">{fmtShortDate.format(i.startsAt)} · {MODE_DE[i.mode]}</div>
+                  </div>
+                  <span className={`badge ${state(i) === "offen" ? "open" : state(i) === "läuft" ? "phase-RUNNING" : state(i) === "abgeschlossen" ? "RETURNED" : ""}`}>{state(i)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       ))}
     </Shell>

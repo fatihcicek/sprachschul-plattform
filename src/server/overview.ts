@@ -8,7 +8,9 @@ import { attendanceRecords, classRegisterEntries, courses, enrollments, lessonSe
 import { can } from "@/domain/permissions";
 import { localDay } from "@/domain/schedule";
 import { attendanceIsOpen, LOOKBACK_DAYS, phaseOf, type SessionPhase } from "@/domain/today";
+import { onboardingFrom, type Onboarding } from "@/domain/onboarding";
 import { loadActor, NotAllowedError } from "@/server/actor";
+import { accessStates } from "@/server/auth";
 
 export type TodayLesson = {
   sessionId: string;
@@ -94,4 +96,15 @@ export async function loadToday(tx: Tx, actorMembershipId: string, now: Date = n
     if (!withEntry.has(s.id)) missingRegister.push(item);
   }
   return { lessons, openAttendance, missingRegister };
+}
+
+/** Einstiegs-Checkliste für die Verwaltung: was bis zum ersten Unterricht noch fehlt. Nur Leitung und Verwaltung. */
+export async function loadOnboarding(tx: Tx, actorMembershipId: string, now: Date = new Date()): Promise<Onboarding> {
+  const actor = await loadActor(tx, actorMembershipId);
+  if (!actor.active || !can(actor.role, "course.configure")) throw new NotAllowedError("course.configure");
+  const courseRows = await tx.select({ id: courses.id }).from(courses);
+  const people = await tx.select({ id: memberships.id, role: memberships.role }).from(memberships).where(eq(memberships.active, true));
+  const states = await accessStates(tx, now);
+  const withAccess = (role: "TEACHER" | "LEARNER") => people.filter((p) => p.role === role && states.has(p.id)).length;
+  return onboardingFrom({ courses: courseRows.length, teachersWithAccess: withAccess("TEACHER"), learnersWithAccess: withAccess("LEARNER") });
 }

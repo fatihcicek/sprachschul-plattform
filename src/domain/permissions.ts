@@ -60,6 +60,18 @@ export function canManageAccountOf(actorRole: Role, targetRole: Role): boolean {
   return targetRole === "LEARNER";
 }
 
+/** Rollen, die über die Personen-Seite neu angelegt werden können. Eine weitere Leitung entsteht dort bewusst nicht. */
+export const ADDABLE_ROLES = ["LEARNER", "TEACHER", "STAFF"] as const;
+export type AddableRole = (typeof ADDABLE_ROLES)[number];
+
+/**
+ * Wer darf Personen mit welcher Rolle neu anlegen? Dieselbe Linie wie beim Zugang:
+ * die Leitung alle anlegbaren Rollen, die Verwaltung nur Teilnehmende.
+ */
+export function canAddPerson(actorRole: Role, targetRole: Role): boolean {
+  return (ADDABLE_ROLES as readonly Role[]).includes(targetRole) && canManageAccountOf(actorRole, targetRole);
+}
+
 // ---- Zustand der Schule: Testzeit, Freischaltung, Sperre ----
 
 export type OrganizationStatus = "TRIAL" | "ACTIVE" | "SUSPENDED";

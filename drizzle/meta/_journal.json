@@ -106,6 +106,20 @@
       "when": 1794345678947,
       "tag": "0014_bamf_schalter",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794473134996,
+      "tag": "0015_registrierung_schule",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794473602569,
+      "tag": "0016_registrierung_schule_schutz",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,7 @@ import * as teach from "@/server/teaching";
 import { changeAttendanceStatus } from "@/server/attendance";
 import { ReadOnlyError } from "@/server/access";
 import { setBamfEnabled } from "@/server/features";
+import { addPeople, PeopleInputError } from "@/server/people";
 
 export async function login(formData: FormData) {
   await loginAs(String(formData.get("membershipId") ?? ""));
@@ -151,6 +152,22 @@ export async function createCourseAction(input: unknown): Promise<CreateCourseRe
   }
 }
 
+
+export type AddPeopleActionResult = { ok: true; created: number } | { ok: false; message: string };
+
+/** Personen an der Schule anlegen (einzeln oder aus einer Tabelle). Die Rechte prüft der Server. */
+export async function addPeopleAction(people: unknown): Promise<AddPeopleActionResult> {
+  try {
+    const r = await asSessionUser((tx, me) => addPeople(tx, me, people));
+    revalidatePath("/verwaltung/personen");
+    revalidatePath("/verwaltung/heute");
+    return { ok: true, created: r.created };
+  } catch (e) {
+    if (e instanceof PeopleInputError || e instanceof ReadOnlyError) return { ok: false, message: e.message };
+    if (e instanceof svc.NotAllowedError) return { ok: false, message: "Dafür fehlt dir die Berechtigung." };
+    throw e;
+  }
+}
 
 // ---- Unterricht: Kursraum ----
 

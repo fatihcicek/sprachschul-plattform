@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
-import { Shell } from "@/app/shell";
+import { navFor, Shell } from "@/app/shell";
 import { feedbackAction } from "@/app/actions";
 import { asSessionUser } from "@/server/context";
 import { getForTeacher } from "@/server/assignments";
@@ -15,9 +15,9 @@ export default async function Abgabe({ params }: { params: Promise<{ id: string 
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const data = await asSessionUser(async (tx, me) => {
-    const [p] = await tx.select({ f: users.firstName, l: users.lastName }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
+    const [p] = await tx.select({ f: users.firstName, l: users.lastName, role: memberships.role }).from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.id, me));
     try {
-      return { name: `${p!.f} ${p!.l}`, ...(await getForTeacher(tx, me, id)) };
+      return { name: `${p!.f} ${p!.l}`, role: p!.role, ...(await getForTeacher(tx, me, id)) };
     } catch {
       return null;
     }
@@ -26,8 +26,8 @@ export default async function Abgabe({ params }: { params: Promise<{ id: string 
   const readOnly = (await getCurrentAccess())?.access.mode === "READ_ONLY";
   const { assignment, submission, learner, versions } = data;
   return (
-    <Shell name={data.name} home="/lehrkraft">
-      <p><Link href="/lehrkraft" className="muted">← Zurück</Link></p>
+    <Shell name={data.name} home="/lehrkraft" nav={navFor(data.role)}>
+      <p><Link href="/lehrkraft" className="pagehead-back">‹ Alle Aufgaben</Link></p>
       <div className="card">
         <div className="row"><h1 style={{ margin: 0 }}>{assignment.title}</h1><span className={`badge ${submission.status}`}>{STATUS_LABEL[submission.status]}</span></div>
         <p className="muted">{learner.firstName} {learner.lastName}</p>
