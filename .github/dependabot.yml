@@ -1,0 +1,13 @@
+# Meldet veraltete Pakete und Aktionen als Pull Request. Es wird nichts automatisch gemergt.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

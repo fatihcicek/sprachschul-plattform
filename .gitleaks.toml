@@ -1,0 +1,17 @@
+# Einstellungen der Geheimnissuche. Die Standardregeln von gitleaks bleiben vollständig aktiv.
+title = "Kurswerk"
+
+[extend]
+useDefault = true
+
+# Nur ausdrücklich bekannte, erfundene Testwerte ausnehmen. Jede Ausnahme gehört hier mit Begründung hin,
+# nie pauschal ganze Ordner.
+[allowlist]
+description = "Erfundene Werte für Tests und Entwicklung"
+regexes = [
+  '''test-geheimnis-0123456789''',               # Testschlüssel in tests/
+  '''entwicklung-nur-lokal-bitte-ersetzen''',     # Platzhalter in .env.example, in Produktion abgelehnt
+]
+paths = [
+  '''package-lock\.json''',
+]

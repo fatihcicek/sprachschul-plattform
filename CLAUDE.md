@@ -21,6 +21,9 @@ frischen Agenten – als Reviewer.
 - Keine Änderung direkt auf `main`, kein Merge und kein Ausliefern ohne Fatihs Freigabe.
 - Kein „fertig" ohne Belege: echte Test- und Prüfausgaben, keine Behauptungen.
 - Schemaänderungen nur über versionierte Migrationen in `drizzle/` (`npx drizzle-kit generate`, Sicherheitsregeln als eigene SQL-Migration).
+- Bereits übernommene Migrationen werden nie verändert, gelöscht oder umbenannt; Korrekturen kommen als neue Migration. Die CI prüft das (`scripts/check-migrations-unchanged.sh`, `tests/migrations.test.ts`).
+- Die CI prüft zusätzlich auf Geheimnisse (gitleaks) und verwundbare Pakete (`npm audit`). Meldungen werden behoben, nie weggeklickt; Ausnahmen in `.gitleaks.toml` nur einzeln mit Begründung.
+- Änderungen an `.github/`, `deploy/`, `scripts/` und `CLAUDE.md` gelten mindestens als mittleres Risiko: Fatih gibt sie frei.
 - Mandantentrennung ist nicht verhandelbar: jede Schultabelle mit `organization_id`, Zeilensicherheit (RLS) und Tests, dass Schule A nie Daten von Schule B sieht. Die App verbindet nie als Datenbank-Superuser.
 - Protokolle, Abgabeversionen und Rückmeldungen sind unveränderlich (Datenbank-Trigger).
 - Rechte stehen an genau einer Stelle: `src/domain/permissions.ts`. Jede Serveraktion prüft dort; die Oberfläche blendet nur aus.
