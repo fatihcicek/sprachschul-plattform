@@ -3,16 +3,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { logout } from "@/app/actions";
 import { TrialBanner } from "@/app/trial-banner";
+import { initials } from "@/app/ui";
 
 export type NavLink = { href: string; label: string; icon?: NavIconName };
-
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
 
 /** Rahmen der App: Seitenleiste mit Navigation und Person (am Handy eine Leiste oben), daneben der Inhalt. */
 export function Shell({ name, home, nav = [], wide = false, children }: { name: string; home: string; nav?: NavLink[]; wide?: boolean; children: ReactNode }) {

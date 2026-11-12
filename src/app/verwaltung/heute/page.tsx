@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { memberships, users } from "@/db/schema";
 import { ADMIN_NAV, Shell } from "@/app/shell";
+import { PageHead } from "@/app/ui";
 import { asSessionUser } from "@/server/context";
 import { loadToday } from "@/server/overview";
 import { NotAllowedError } from "@/server/actor";
@@ -31,8 +32,7 @@ export default async function Heute() {
   const open = openAttendance.length + missingRegister.length;
   return (
     <Shell name={data.name} home="/verwaltung/heute" nav={ADMIN_NAV}>
-      <h1>Heute</h1>
-      <p className="muted" style={{ marginTop: -12 }}>{fmtDay.format(new Date())}</p>
+      <PageHead title="Heute" lead={fmtDay.format(new Date())} />
 
       <h2 className="sect">Unterricht heute</h2>
       {lessons.length === 0 && <div className="card muted">Heute findet kein Unterricht statt.</div>}

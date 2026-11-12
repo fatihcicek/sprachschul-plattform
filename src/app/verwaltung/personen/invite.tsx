@@ -10,7 +10,7 @@ export function InviteButton({ membershipId, label }: { membershipId: string; la
   const [result, setResult] = useState<{ link: string; expiresAt: string } | { message: string } | null>(null);
   const [copied, setCopied] = useState(false);
   return (
-    <div style={{ flexBasis: "100%" }}>
+    <div className={result ? "invite open" : "invite"}>
       <button type="button" className="ghost" disabled={pending} onClick={() => start(async () => {
         const r = await inviteAction(membershipId);
         setCopied(false);
