@@ -19,7 +19,7 @@ Noch nicht gebaut: Live-Unterricht, Kursmaterial, Übungen, Signaturliste, Zahlu
 | `src/app` | Next.js-Anwendung (Oberflächen und Serveraktionen) |
 | `tests` | Tests, darunter `database.test.ts` gegen eine echte PostgreSQL-Datenbank |
 | `docs` | BAMF-Anforderungen mit Quellen und offenen Punkten, Betrieb (`betrieb.md`) |
-| `deploy`, `scripts` | Vorlage für den Abruf auf dem Server, Prüfskript für den Server, Betreiberwerkzeuge, Paketbau, Migrationsprüfung |
+| `deploy`, `scripts` | Vorlage für den Abruf auf dem Server, Prüfskript für den Server, Betreiberwerkzeuge, Paketbau (die Migrationsprüfung kommt mit Pull Request #23) |
 
 ## Drei Grundregeln
 
