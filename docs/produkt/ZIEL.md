@@ -101,7 +101,7 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 
 | Funktion | Status | Beleg / Anmerkung |
 | --- | --- | --- |
-| Übungstypen (Auswahl, Lückentext, Zuordnen, Reihenfolge, Kurzantwort …), Editor, Auto-Bewertung, Wiederholung | FEHLT | Umfang hängt an Frage 2 |
+| Übungstypen (Auswahl, Lückentext, Zuordnen, Reihenfolge, Kurzantwort), Editor, Auto-Bewertung, Wiederholung | FEHLT | Umfang vorläufig entschieden (Frage 2, §8.1) |
 
 ### F7 Live-Unterricht
 
@@ -164,7 +164,7 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 
 ## 7. Bereits getroffene Entscheidungen
 
-- Mehrere Schulen mit getrennten Bereichen; Abo-Modell; Pilotschule Sprachen Plus e.V.
+- Mehrere Schulen mit getrennten Bereichen; Abo-Modell; vorgeschlagene Pilotschule Sprachen Plus e.V. (nicht formal bestätigt, siehe 8.1)
 - Selbstregistrierung der Schulen, 7 Tage Test, danach nur lesend.
 - Fokus auf Lernen (Unterricht, Kursraum), Anwesenheit/Protokoll als optionaler Baustein.
 - Eigener Live-Raum mit LiveKit; Reihenfolge: erst Kursraum mit Material und Aufgaben, dann Live-Raum; vorher technische Prüfung von Kosten und Hosting.
@@ -220,7 +220,7 @@ Diese Spezifikation wurde gegen Code, Datenbank-Migrationen, Tests und GitHub ge
 
 - **Belegt:** 22 mandantengebundene Tabellen mit RLS und FORCE RLS; Rechte-Tabelle in `src/domain/permissions.ts`; Aufgaben mit Fristen; Anwesenheit, Protokoll, Klassenbuch; Hauptzweig ohne Branch-Schutz; Deploy-Workflow mit Schreibrecht für Pull-Request-Läufe.
 - **Widersprüche, die behoben oder in M0 eingeplant sind:** README veraltet (M0-12); `CLAUDE.md` nennt Next.js 15, installiert ist 16 (M0-11); frühere Fassung behauptete fehlende Fristen (korrigiert).
-- **Bisher fehlende Funktionen, jetzt im Plan:** Präsenzkurse, Räume, Anmeldung, Warteliste (Frage 10, M1); Stundenplan und Vertretung (M6); Noten und Zeugnisse (nur falls Frage 5 sie verlangt); Aktivitätsprotokoll sichtbar für Leitung (M1); Suche und Filter (M1, M2); Datenexport einer Schule (M8); Support-Weg für Schulen (M8).
+- **Bisher fehlende Funktionen, jetzt im Plan:** Präsenzkurse, Räume, Anmeldung, Warteliste (Frage 10, M1); Stundenplan für die Verwaltung (M1-13), persönlicher Stundenplan und Vertretung (M6-06); Noten und Zeugnisse (nur falls Frage 5 sie verlangt); Aktivitätsprotokoll sichtbar für Leitung (M1); Suche und Filter (M1, M2); Datenexport einer Schule (M8); Support-Weg für Schulen (M8).
 - **Ungeprüft:** Serverzustand, Datenablage der Testumgebung, Sicherungen, Dauer des Pilot-Betriebs (siehe §9).
 
 ## 9. Ungeprüftes, das früh geklärt werden muss

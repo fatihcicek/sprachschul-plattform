@@ -32,7 +32,7 @@ Zwei weitere Regeln: Tests werden nicht abgeschwächt, Sicherheitsprüfungen nic
 Wahrheit ist **Git**, nicht die Unterhaltung.
 
 - `docs/produkt/BACKLOG.md`: Aufgaben, Abhängigkeiten, Risikoklassen (Quelle der Reihenfolge).
-- `docs/produkt/STATUS.md` (neu in M0-14): je Aufgabe Status (offen / in Arbeit / im Review / auf Meilenstein-Zweig / blockiert), Zweig, Pull-Request-Nummer, Datum, Nachweisverweis, nächster Schritt, Blockade in einfacher Sprache. Wird nur im Aufgabenzweig geändert, nie direkt auf `main`.
+- `docs/produkt/STATUS.md` (neu in M0-14): je Aufgabe Status (offen / begonnen / in Prüfung / fertig = im Meilenstein-Zweig / blockiert), Zweig, Pull-Request-Nummer, Datum, Nachweisverweis, nächster Schritt, Blockade in einfacher Sprache. Wird nur im Aufgabenzweig geändert, nie direkt auf `main`.
 - `docs/produkt/FREIGABEN.md` (neu in M0-14): Freigaben von Fatih (Meilenstein, Datum, Umfang, ausgeschlossene Aktionen). Wirksam **nur**, wenn die Datei durch einen von Fatih gemergten Pull Request geändert wurde. Eine Freigabe im Chat ist Auftrag an mich, die Datei zu ändern, nicht selbst die Freigabe.
 - `docs/produkt/STOP`: Existiert die Datei auf `main`, startet kein Lauf. Weil das Ruleset auch Administratoren bindet, geht das Anlegen nur per Pull Request und Merge; schneller sind zwei Alternativen, die in M0-14 gewählt werden: das Beenden der geplanten Aufgabe oder eine Repository-Variable, die die Vorprüfung liest (ungeprüft).
 - Nachweise je Aufgabe im Pull-Request-Text: Befehle mit echter Ausgabe, Browserbelege, Reviewer-Urteil, Anzahl Korrekturrunden.
@@ -47,14 +47,14 @@ Bis `FREIGABEN.md` auf `main` liegt, gilt:
    - *Merge erlaubt* (diesen Pull Request in `main` zusammenführen, mit dem Wissen, dass `main` die Testumgebung neu baut und neu startet),
    - *Meilenstein freigegeben* (Umfang, ausgeschlossene Aktionen).
 3. **Form der Aufzeichnung:** ein Kommentar von Fatih in seinem Browser unter dem Pull Request, nach einer Vorlage, die ich ihm bereitstelle, z. B. `FREIGABE Spezifikation: ZIEL/BACKLOG/AUTONOMIE im Stand <voller Commit-Hash>. Merge: noch nicht erlaubt.` Gilt nur, wenn der Hash dem aktuellen Kopf des Pull Requests entspricht; jede weitere Änderung macht die Freigabe unwirksam.
-4. **Ehrliche Grenze:** Mein Werkzeug handelt unter Fatihs Konto (§7a), ein Kommentar ist technisch also nicht fälschungssicher. Schutz bieten (a) meine feste Regel, nie einen Kommentar dieser Form zu schreiben und nie `merge`-Aufrufe der API auszuführen, (b) Fatihs Sichtkontrolle, (c) ab dem eigenen Agentenkonto die technische Trennung. Der Hash-Bezug stellt sicher, dass nach meinen Änderungen nichts als freigegeben durchgeht.
+4. **Ehrliche Grenze:** Mein Werkzeug handelt unter Fatihs Konto (§7a), ein Kommentar ist technisch also nicht fälschungssicher. Schutz bieten (a) meine feste Regel, nie einen Kommentar dieser Form zu schreiben und nie `merge`-Aufrufe der API auszuführen, (b) Fatihs Sichtkontrolle, (c) ab dem eigenen Agentenkonto die technische Trennung. Der Hash-Bezug stellt sicher, dass nach meinen Änderungen nichts als freigegeben durchgeht. Hinweis: Ein Ruleset mit Pflicht zu einem Review würde mit nur einem Konto auch Fatih selbst blockieren; bis zum Agentenkonto verlangt das Ruleset deshalb nur Pull Request und grüne Prüfungen, nicht die Freigabe durch eine zweite Person.
 5. **Wirksam für Meilensteine** ist erst der Eintrag in `FREIGABEN.md`, der über einen von Fatih gemergten Pull Request auf `main` gelangt ist. Für die erste betreute Ausführung genügt, solange das noch nicht möglich ist, der Kommentar nach Punkt 3 plus Fatihs Anwesenheit.
-6. **Warum PR #27 nicht zusammen mit der Genehmigung gemergt wird:** ein Merge löst auf `main` Bau, Veröffentlichung im Zweig `deploy` und Neustart der Testumgebung aus (belegt, `deploy.yml`). Auch reine Dokumentation löst das aus. Eine Änderung von `deploy.yml`, die Dokumentationsänderungen ausnimmt, ist als Teil von M0-04 vorzuschlagen (Klasse C).
+6. **Warum PR #27 nicht zusammen mit der Genehmigung gemergt wird:** ein Merge löst auf `main` Bau und Veröffentlichung im Zweig `deploy` aus (belegt: `deploy.yml`, kein Pfadfilter, also auch bei reiner Dokumentation). Dass der Server den Zweig alle fünf Minuten abholt, steht laut Kommentar im Workflow und in der Cron-Beschreibung; ein Neustart und seine Folgen für die Daten der Testumgebung sind ungeprüft (M0-06). Eine Änderung von `deploy.yml`, die Dokumentationsänderungen ausnimmt, ist als Teil von M0-04 vorzuschlagen (Klasse C).
 
 ## 4. Ablauf einer Aufgabe (ein Lauf = eine Aufgabe)
 
 1. **Vorprüfung** (`scripts/preflight.sh`, neu): `STOP` fehlt; Freigabe für den Meilenstein in `FREIGABEN.md` auf `main`; Arbeitsbaum sauber; CI auf `main` und dem Meilenstein-Zweig grün; Branch-Schutz laut Abfrage aktiv; Aufgabenbudget nicht erschöpft. Fehlt etwas: Lauf endet mit Statusnotiz, nichts wird gebaut.
-2. **Aufgabe wählen:** erste offene Aufgabe in Reihenfolge, deren Abhängigkeiten erledigt sind, Risikoklasse A oder B, und die nicht in `STATUS.md` belegt ist.
+2. **Aufgabe wählen:** erste Aufgabe **des freigegebenen Meilensteins** in der Reihenfolge von `BACKLOG.md` mit Status „offen“, deren Abhängigkeiten alle „fertig“ sind (Aufgaben-IDs) oder in `STATUS.md` als Bedingung belegt erfüllt sind (Freitext-Abhängigkeiten wie „Fachperson“ gelten ohne Beleg als nicht erfüllt; „Frage N“ gilt als erfüllt, wenn `ZIEL.md` §8 sie als entschieden führt), Risikoklasse A oder B ohne offenen Stopp-Punkt, nicht in `STATUS.md` belegt. Gibt es keine, endet der Lauf mit dem Grund.
 3. **Beanspruchen:** Aufgabenzweig `task/mN-NN-…` und Entwurfs-Pull-Request anlegen. Existiert der Zweig schon, wird **fortgesetzt**, nicht neu begonnen (kein Doppelbau).
 4. **Untersuchen** (Code, Datenmodell, Tests), **bauen** im eigenen Zweig/Worktree, kleine Commits.
 5. **Prüfen:** `npx tsc --noEmit`, `npx vitest run`, `npm run build`; Mandanten-, Rechte- und Sicherheitstests; Browserdurchgang bei Nutzerabläufen.
@@ -121,7 +121,7 @@ Die Sitzung arbeitet mit Fatihs eigenem GitHub-Konto (`gh api user` liefert `fat
 ## 10. Vorbereiten oder freigeben?
 
 **Jetzt vorbereiten (Klasse A/B, im Pull Request #27 oder Folge-PR, ohne Freigabe für Betrieb):**
-Dokumente (diese Datei, `STATUS.md`-Vorlage, `FREIGABEN.md`-Vorlage), Skripte als Entwurf (`preflight.sh`, `test-integrity.sh`) als nicht aktive Dateien, Tests für Invarianten, Pull-Request-Vorlagen, Reviewer-Prompt.
+Dokumente (diese Datei, `STATUS.md`-Vorlage, `FREIGABEN.md`-Vorlage), Entwürfe der Skripte als Text unter `docs/produkt/entwurf/` (nicht unter `scripts/`, nicht ausführbar; Inkraftsetzen ist M0-14, Klasse C), Tests für Invarianten, Pull-Request-Vorlagen, Reviewer-Prompt.
 
 **Braucht Fatihs Freigabe (Klasse C):**
 Ruleset/Branch-Schutz auf `main` und `deploy`; Änderung an `deploy.yml`; Dateien in `scripts/`, `.github/`, `deploy/` aktiv schalten; Hooks aktivieren; Anlage geplanter Aufgaben; Anmeldung von Claude Code auf seinem Rechner; privates Repository; Entscheidungen zu `permissions.ts`; jede Zahlung/jeder neue Dienst.
@@ -132,15 +132,15 @@ Ruleset/Branch-Schutz auf `main` und `deploy`; Änderung an `deploy.yml`; Dateie
 | --- | --- | --- | --- | --- |
 | 1 | PR #27: Spezifikation genehmigen (Kommentar nach §3a), **Merge getrennt davon** erlauben | Fatih | – | ja |
 | 2 | M0-04 `deploy.yml`: Schreibrecht für Pull-Request-Läufe entfernen (zuerst, unabhängig von Schritt 3) | Maschine bereitet vor, Fatih gibt frei | C | **ja** |
-| 3 | M0-03 Ruleset auf `main` (+ `deploy`), Administratoren eingeschlossen, danach Gegenversuch | Fatih setzt, Maschine prüft | C | **ja** |
+| 3 | M0-03 Ruleset auf `main` (+ `deploy`): Pull Request und grüne Prüfungen verlangt, kein Direkt-Push, kein Force-Push, Administratoren eingeschlossen; Review-Pflicht erst mit Agentenkonto (3a); danach Gegenversuch | Fatih setzt, Maschine prüft | C | **ja** |
 | 3a | Eigenes GitHub-Konto (oder App) für den Agenten mit eng begrenztem Token, Rechte nur dieses Repository, kein Admin (§7a) | Fatih legt an, Maschine prüft die Wirkung | C (Zugangsdaten) | **ja für unbeaufsichtigte Läufe**; für betreute Läufe empfohlen |
-| 4 | M0-14 Statusdateien, Vorprüfung, Testintegrität, Stopp-Datei | Maschine | B/C | **ja** |
+| 3b | M0-08 (Entscheidungen zu `permissions.ts`), M0-10 (Invarianten als Tests), M0-11 (`CLAUDE.md`) | Fatih entscheidet, Maschine bereitet vor | B/C | **ja** (Bedingungen von M0-14) |
+| 4 | M0-14 Statusdateien, Vorprüfung, Testintegrität, Stopp-Datei | Maschine bereitet vor, Fatih gibt frei | C | **ja** |
 | 5 | Ausführungsfläche wählen (Cloud-Sitzung betreut vs. Fatihs Rechner mit Anmeldung) | Fatih | C | ja |
 | 6 | Erster betreuter Lauf auf M1 (supervised) | Maschine + Fatih | – | – |
-| 7 | #23–#26 mergen, wenn Fatih bereit | Fatih | – | nein (nur Komfort/Stabilität) |
-| 8 | Serverprüfung (M0-01, M0-05 bis M0-07) (read-only), PGlite-Befund, Sicherungen, privates Repo mit lesender Servermethode, Schlüsselrotation, `permissions.ts`-Entscheidungen | Fatih + Maschine | C | **nein**: nur für Merge/Auslieferung |
+| 7 | Serverprüfung (M0-01, read-only), Merge von #23–#26 (M0-02), privates Repo mit lesender Servermethode und Schlüsselrotation (M0-05), PGlite-Befund (M0-06), Sicherung und Wiederherstellung (M0-07) | Fatih + Maschine | C | **nein**: nur für Merge/Auslieferung |
 
-Unbeaufsichtigte Entwicklung ohne Schritte 2 bis 5 wäre Vertrauen auf Anweisungen statt auf Technik. Merge/Auslieferung brauchen zusätzlich Schritt 8.
+Unbeaufsichtigte Entwicklung ohne Schritte 2 bis 5 (einschließlich 3a und 3b) wäre Vertrauen auf Anweisungen statt auf Technik. Merge/Auslieferung brauchen zusätzlich Schritt 7.
 
 ## 12. Kleinste lauffähige Umsetzung
 
@@ -173,7 +173,7 @@ Bereits geprüft: Das Aufgabenformat in `BACKLOG.md` (`- **ID Titel** · Klasse 
 ### 12.3 Technische Schutzmaßnahmen vor der ersten betreuten Ausführung
 
 Betreut heißt: Fatih sieht zu und kann abbrechen. Mindestens nötig:
-1. M0-04 erledigt (Pull-Request-Läufe ohne Schreibrecht), sonst gilt die lokale Diff-Prüfung als einzige Sperre.
+1. **M0-04 erledigt (zwingend):** `deploy.yml` hat Schreibrecht und führt bei jedem Pull Request Repository-Code aus (`npm ci`, Tests, Paketbau). Jeder Pull Request eines Agenten, auch ohne Änderung an `.github/`, könnte das Token im Lauf missbrauchen (nicht ausprobiert). Eine lokale Diff-Prüfung genügt dafür nicht. Bis M0-04 öffnet der Agent daher nur Pull Requests, deren Diff ausschließlich `docs/` betrifft.
 2. Ruleset auf `main` und `deploy` (M0-03), mit Gegenprobe. Hinweis §7a: gegen mein eigenes Konto wirkt es nur teilweise.
 3. Meilenstein-Zweig `meilenstein/m1-verwaltung` angelegt; Freigabe nach §3a vorhanden; `STOP`-Mechanismus und `preflight.sh` getestet.
 4. `test-integrity.sh` und Review-Anweisung vorhanden.
@@ -198,7 +198,8 @@ Zusätzlich nötig **vor unbeaufsichtigten Läufen:** eigenes Agentenkonto mit e
 
 Kriterium: Klasse A (oder B ohne Migration und ohne Rechteänderung), kein Eingriff in `permissions.ts`, Authentifizierung, Sitzungen, RLS, `.github/`, `deploy/`, `scripts/`, `CLAUDE.md`, keine neue Abhängigkeit, nur erfundene Daten. Die Arbeit läuft auf einem Task-Zweig mit Entwurfs-PR, ohne Merge.
 
-- Sofort geeignet: **M1-07** (Personenliste), **M1-08** (Import), **M1-10** (E-Mail-Texte, nach M1-01), **M1-13** (Stundenplan, nach M1-11), **M2-01/02/03/05/07/08** (Oberfläche, Texte), **M3-03/04**, **M4-01/02/04–08** (Bewertungslogik ohne Datenbank, Editor, Ansichten), **M6-04**, **M7-07/09** (Dokumente).
+- Sofort geeignet (per Skript aus den Abhängigkeiten ermittelt, 13.11.2026: Klasse A, Kette der Vorgänger besteht nur aus Klasse A): **M1-07** und **M1-01** ohne Vorgänger; danach **M1-08** (nach M1-07), **M1-10** (nach M1-01); **M4-01** und danach **M4-02** (Bewertungslogik ohne Datenbank); **M2-01**, dann **M2-02, M2-03, M2-05, M2-07, M2-08** (Oberfläche, jeweils in dieser Reihenfolge gestapelt, nach M1-01) sowie **M0-12** (README, Klasse A ohne Vorgänger). Diese Aufgaben dürfen erst beginnen, wenn ihr Meilenstein freigegeben ist (§3a); M2 und M4 sind noch nicht freigegeben.
+- Nicht sofort, obwohl Klasse A: Aufgaben mit Vorgängern der Klasse B oder C (z. B. M1-13 hinter M1-11 und M1-06, M3-03/04 hinter M3-02, M4-04 bis M4-08 hinter M4-03, M6-04 hinter M1-06, M7-07 hinter M7-02 und M5-04).
 - Erst nach Meilenstein-Freigabe mit Stopp-Punkt: Klasse-B-Aufgaben mit Migration oder Recht (M1-02, M1-03, M1-05, M1-06, M1-09, M1-11, M2-04, M2-06, M3-02, M3-05, M3-06, M4-03).
 - Nur mit Fatihs Einzelfreigabe: alle Klasse C.
 
