@@ -66,4 +66,24 @@ describe("deploy.yml: nur der Job 'ausliefern' schreibt, nur von main aus", () =
     expect(text("deploy.yml").match(/secrets\./g)).toHaveLength(1);
     expect(text("deploy.yml").match(/git\s+push/g)).toHaveLength(1);
   });
+  it("'ausliefern' führt keinen Projektcode aus: kein Checkout, kein Node/npm, nur Download der Prüf-Datei", () => {
+    const steps: any[] = jobs.ausliefern.steps;
+    const uses = steps.map((x) => String(x.uses ?? "")).filter(Boolean);
+    expect(uses).toHaveLength(1);
+    expect(uses[0]).toMatch(/^actions\/download-artifact@[0-9a-f]{40}$/);
+    const runs = steps.map((x) => String(x.run ?? "")).join("\n");
+    expect(runs).not.toMatch(/\b(npm|npx|node|pnpm|yarn|bash|python3?)\b|(^|\s)\.\/[\w.-]|\bmake\b/m);
+    expect(runs).toContain("sha256sum -c");
+    expect(JSON.stringify(jobs.ausliefern)).toContain("needs.build.outputs.sha256");
+  });
+  it("Pakettransport: build lädt hoch, nur bei Push auf main, mit Prüfsumme als Job-Ausgabe", () => {
+    const up = (jobs.build.steps as any[]).filter((x) => String(x.uses ?? "").startsWith("actions/upload-artifact"));
+    expect(up).toHaveLength(1);
+    expect(up[0].if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(jobs.build.outputs.sha256).toContain("steps.paket.outputs.sha256");
+  });
+  it("Pull-Request-Läufe erreichen 'ausliefern' nie", () => {
+    expect(wf.on.pull_request).not.toBeUndefined();
+    expect(jobs.ausliefern.if).not.toMatch(/pull_request/);
+  });
 });
