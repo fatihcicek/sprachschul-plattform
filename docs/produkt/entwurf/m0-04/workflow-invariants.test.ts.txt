@@ -41,7 +41,7 @@ describe("alle Workflows", () => {
     });
     it(`${f}: außerhalb von deploy.yml kein Push, keine gh-API, keine Umgebung, kein DEPLOY_KEY`, () => {
       if (f === "deploy.yml") return;
-      expect(raw).not.toMatch(/git\s+push|\bgh\s+(api|release|pr|repo)|environment\s*:|DEPLOY_KEY|toJSON\(\s*secrets|github\.token/);
+      expect(raw).not.toMatch(/group:\s*['"]?deploy|git\s+push|\bgh\s|git\s+-C|environment\s*:|DEPLOY_KEY|toJSON\(\s*secrets|github\.token/);
     });
   }
 });
@@ -56,12 +56,12 @@ describe("deploy.yml: nur der Job 'ausliefern' schreibt, nur von main aus", () =
   });
   it("ausliefern: Umgebung, exakte Bedingung, hängt nur von build ab", () => {
     expect(jobs.ausliefern.environment).toBe("auslieferung");
-    expect(jobs.ausliefern.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(jobs.ausliefern.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.repository.private == false");
     expect([].concat(jobs.ausliefern.needs)).toEqual(["build"]);
   });
   it("Schlüssel, Umgebung, Secrets und Push gibt es nur in 'ausliefern'", () => {
     const j = JSON.stringify(jobs.build);
-    expect(j).not.toMatch(/DEPLOY_KEY|secrets\.|github\.token|environment|git\s+push/);
+    expect(j).not.toMatch(/DEPLOY_KEY|secrets\b|github\.token|environment|git\s+push/);
     expect(JSON.stringify(wf.concurrency)).not.toMatch(/secrets/);
     expect(text("deploy.yml").match(/secrets\./g)).toHaveLength(1);
     expect(text("deploy.yml").match(/git\s+push/g)).toHaveLength(1);
@@ -74,6 +74,11 @@ describe("deploy.yml: nur der Job 'ausliefern' schreibt, nur von main aus", () =
     const runs = steps.map((x) => String(x.run ?? "")).join("\n");
     expect(runs).not.toMatch(/\b(npm|npx|node|pnpm|yarn|bash|python3?)\b|(^|\s)\.\/[\w.-]|\bmake\b/m);
     expect(runs).toContain("sha256sum -c");
+    expect(runs).not.toMatch(/curl|wget|eval|\|\s*(ba)?sh\b|\|\|\s*true|\$\{\{|StrictHostKeyChecking=no|git\s+-C|gh\s/);
+    for (const must of ["set -euo pipefail", "StrictHostKeyChecking=yes", "core.hooksPath /dev/null", "GIT_CONFIG_NOSYSTEM=1", "-filter -text -ident", "Paket enthält unzulässige Pfade", "Paket enthält unzulässige Links", "\\.git(hub)?"])
+      expect(runs, must).toContain(must);
+    expect(steps.map((x) => x.name ?? x.uses)).toEqual([expect.stringMatching(/^actions\/download-artifact@/), "Paket prüfen und entpacken", "Paket auf den Zweig deploy legen"]);
+    expect(Object.keys(steps[0].with).sort()).toEqual(["name", "path"]);
     expect(JSON.stringify(jobs.ausliefern)).toContain("needs.build.outputs.sha256");
   });
   it("Pakettransport: build lädt hoch, nur bei Push auf main, mit Prüfsumme als Job-Ausgabe", () => {

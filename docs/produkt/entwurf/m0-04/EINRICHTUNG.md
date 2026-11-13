@@ -15,8 +15,10 @@ Testumgebung `schule.gold-code-academy.com`. Ein Merge ist damit heute zugleich 
    - `build` (Prüfen): nur Leserechte, kennt keinen Schlüssel. Führt `npm ci`, `tsc`, `vitest`, `bundle.sh` aus. Nur bei Push auf `main` verpackt er `dist/`
      als `paket.tgz`, merkt sich die Prüfsumme (SHA-256) als Job-Ausgabe und lädt die Datei hoch.
    - `ausliefern`: bekommt den Schlüssel erst nach Freigabe. Kein Checkout, kein Node, kein npm, kein Projekt-Skript. Er lädt die Datei,
-     prüft die Prüfsumme gegen die Ausgabe von `build`, prüft die Dateipfade (kein `..`, kein absoluter Pfad, kein `.git`), entpackt und legt sie per `git push` auf `deploy`.
-     Ausgeführt werden nur `tar`, `sha256sum`, `git`, `ssh` der GitHub-Runner.
+     prüft die Prüfsumme gegen die Ausgabe von `build`, prüft Pfade und Links (kein `..`, kein absoluter Pfad, kein `.git`/`.github`, keine Hardlinks, keine Symlinks auf absolute Ziele), entpackt und legt sie per `git push` auf `deploy`.
+     Ausgeführt werden nur `tar`, `sha256sum`, `git`, `ssh` der GitHub-Runner. Git läuft ohne System-/Nutzer-Konfiguration, ohne Hooks und mit `* -filter -text -ident`.
+   Die Prüfsumme schützt den Transport zwischen den Jobs, **nicht** gegen einen kompromittierten Prüfjob (der erzeugt Paket und Summe selbst).
+   `.github/` im Paket ist verboten: Ein Push per Deploy-Key löst Workflows aus dem gepushten Stand aus, ein eingeschmuggelter Workflow bekäme sonst ein Schreib-Token.
 2. **Umgebung `auslieferung`**: enthält das Geheimnis `DEPLOY_KEY`, nur für den Zweig `main` freigegeben, **mit Pflicht-Freigabe durch Fatih** („Required reviewer“).
 3. **Regelsatz `deploy-nur-deploy-key`**: auf `deploy` sind Anlegen, Aktualisieren, Löschen, Überschreiben verboten, ausgenommen der Deploy-Key.
    Das `GITHUB_TOKEN` eines PR wird abgewiesen, selbst mit `contents: write`.
@@ -25,14 +27,14 @@ Testumgebung `schule.gold-code-academy.com`. Ein Merge ist damit heute zugleich 
 Warum alle vier: Ohne Teil 3 reicht dem PR ein eigenes `contents: write`. Ohne Teil 2 könnte er den Schlüssel auslesen. Ohne die Trennung in Teil 1
 läuft fremder Paketcode neben dem Schlüssel. Ohne die Freigabe in Teil 2 löst jeder Merge eine Auslieferung aus.
 
-Pins (mit `git ls-remote` gegen die öffentlichen Repositories geprüft, Tags sind einfach, keine Fälschung durch Fork-Commits möglich bei Abgleich über das Original):
+Pins (mit `git ls-remote` gegen die öffentlichen Original-Repositories geprüft):
 checkout v4.3.1 `34e1148…`, setup-node v4.4.0 `49933ea…` (beide wie in PR #23), upload-artifact v4.6.2 `ea165f8…`, download-artifact v4.3.0 `d3f86a1…`.
 Nach Anwendung zeigt Dependabot neue Versionen an (PR #23).
 
 ## 3. Entscheidungen
 ### 3.1 Deploy-Key oder GitHub App für den Schreibzugriff auf `deploy`
-Belegt (GitHub-Doku/Changelog, Suchtreffer): `DeployKey` ist ein Bypass-Typ im Regelsatz (seit April 2024), `actor_id` ist `null`, nur Modus „immer“.
-Folge: Der Bypass gilt für **jeden** Deploy-Key des Repositories mit Schreibrecht, nicht für einen bestimmten.
+Belegt (GitHub-REST-Doku, Suchtreffer): `DeployKey` ist ein Bypass-Typ im Regelsatz, `actor_id` ist `null`. Laut GraphQL-Schema ist für Deploy-Keys nur der Modus „always“ erlaubt (Changelog April 2024; Doku nennt allgemein always/pull_request/exempt, `pull_request` gilt für Deploy-Keys nicht).
+Folge (aus `actor_id: null` abgeleitet, von GitHub nicht ausdrücklich so formuliert): Der Bypass gilt für **jeden** Deploy-Key des Repositories mit Schreibrecht, nicht für einen bestimmten.
 Das ist für uns kleiner, als es klingt, solange die Regeln unten gelten.
 
 | | Deploy-Key (empfohlen) | GitHub App nur für `deploy` |
@@ -54,12 +56,16 @@ Nach dem Patch baut ein Merge in `main` nur noch. Der Job `ausliefern` **pausier
 Grenzen, ehrlich:
 - Gilt nur bei **öffentlichem** Repository. Für Environments mit Pflicht-Freigabe in privaten Repositories braucht es laut GitHub-Doku GitHub Enterprise; Environment-Secrets in privaten
   Repositories brauchen Pro/Team. Wird ein Repository von öffentlich auf privat gestellt, werden Schutzregeln und Environment-Secrets **ignoriert**.
-  Fallback ohne Tarif: Auslöser `push` entfernen, nur `workflow_dispatch` (Fatih startet die Auslieferung von Hand); der Schlüssel läge dann als normales Repository-Secret und wäre für PR-Läufe lesbar. Das schwächt Teil 2.
+  Die Datei ist deshalb **fail-closed**: `ausliefern` läuft nur, wenn `github.event.repository.private == false`. Wird das Repository privat, bleibt die Auslieferung stehen, statt ohne Klick zu laufen
+  (auch mit Team-Tarif, wo Secrets bleiben, aber Pflicht-Freigaben ignoriert würden). Ein Fallback mit Repository-Secret und manuellem `workflow_dispatch` würde den Schlüssel für PR-Läufe lesbar machen und wird **nicht** empfohlen.
   Darum: **Repository nicht privat stellen, bevor diese Frage gelöst ist.**
+- Fehlt die Umgebung oder ist sie umbenannt, legt GitHub beim Lauf eine neue ohne Regeln und ohne Secrets an. Das bleibt sicher, solange `DEPLOY_KEY` **nur** als Environment-Secret `auslieferung` existiert.
+- Eine weitere Workflow-Datei auf `main` mit `environment: auslieferung` bräuchte ebenfalls die Freigabe; beim Klick siehst Du aber nicht, was der Job tut. Freigabe nur nach Blick auf den Commit. Der Test verbietet `environment:` in anderen Dateien nur als Frühwarnung.
 - Solange Agent und Fatih dasselbe GitHub-Konto nutzen, könnte der Agent die Freigabe technisch selbst geben. Die Sperre bindet erst mit getrennter Identität (Abschnitt 6).
   Bis dahin gilt die Anweisung, nicht Technik.
 - „Prevent self-review“ bleibt aus (einzige Person); „Allow administrators to bypass“ ausschalten, falls angeboten.
 - Fatih sieht beim Freigeben nicht den Paketinhalt, nur dass ein Lauf auf `main` wartet. Freigeben nur nach Blick auf Commit und grünen Prüflauf.
+- Lücke bis Schritt 10: `main` hat keinen Schutz (heute 404 „not protected“). Jedes Token mit Schreibrecht kann dort direkt pushen, bis Teil 6 aktiv ist. M0-04 schließt nur den Weg über `deploy`.
 - Bis M0-04 auf `main` ist, löst jeder Merge (auch PR #27) die alte, automatische Auslieferung aus. Deshalb Merges bis dahin nur nach Deiner ausdrücklichen Entscheidung.
 
 ## 4. Was Fatih selbst tun muss (nichts davon tut Claude)
@@ -78,13 +84,14 @@ Reihenfolge: 1 bis 7 einrichten, dann Datei einbringen (8), dann Proben (9).
 
 ## 5. Nachweise
 Erbracht (lokal, Wegwerf-Worktree auf `d2c11f2`/`b2f05ee`, danach entfernt; nichts gepusht außer den Doku-Entwürfen):
-- **Tests:** `workflow-invariants.test.ts` gegen den Zwei-Jobs-Entwurf **13 von 13 grün**, `npx tsc --noEmit` Exit 0. Gegen die heutige `deploy.yml` waren in einer früheren, schwächeren Fassung 7 von 10 rot.
-- **Mutationen, jeweils erkannt:** Checkout im Auslieferungsjob (2 rot), `npm ci` dort (1), Prüfsummenprüfung entfernt (1), Download ohne SHA-Pin (2), Upload auch bei PR (1);
+- **Tests:** `workflow-invariants.test.ts` gegen den Zwei-Jobs-Entwurf (Stand nach Review 2) **13 von 13 grün**, `npx tsc --noEmit` Exit 0. Gegen die heutige `deploy.yml` waren in einer früheren, schwächeren Fassung 7 von 10 rot.
+- **Mutationen, jeweils erkannt (nach Review 2 zusätzlich):** Prüfsumme mit `|| true`, `StrictHostKeyChecking=no`, `hooksPath`-Zeile weg, `set -euo pipefail` weg, `curl|sh` im Auslieferungsjob, `private == false` weg, `GIT_CONFIG_NOSYSTEM` weg, `run-id` am Download (je 1 rot). Außerdem: Checkout im Auslieferungsjob (2 rot), `npm ci` dort (1), Prüfsummenprüfung entfernt (1), Download ohne SHA-Pin (2), Upload auch bei PR (1);
   früher: `write-all`, `|| always()`, `pull_request_target`, `git  push`, `github.token`, lokale Action.
 - **Build-Verhalten unverändert (Rundlauf):** `bundle.sh` (ohne `DATABASE_URL`, Paket 55M) → `tar` → Prüfsumme → Pfadprüfung → entpackt → `git add -A -f`:
   Git-Baum des entpackten Pakets **identisch** mit dem Baum direkt aus `dist/` (`3acde40…`, 2028 Dateien, 3 Symlinks, 0 ausführbare Dateien). Ein verändertes Paket wird von der Prüfsumme abgelehnt.
   Damit ist der Inhalt des Zweigs `deploy` wie bisher. Der Server (`deploy/namecheap-update.sh`) bleibt unverändert.
-- **Grenze der Tests:** Ein PR kann den Test selbst ändern; er beweist nicht die Sperre. Nicht lokal prüfbar: `actionlint` (nicht installierbar, Netz), das echte Verhalten von upload/download-artifact auf GitHub.
+- **Pfad-/Link-Prüfung funktional:** erlaubt ein Archiv mit relativem Symlink, lehnt ab: absoluter Symlink, Hardlink, `.github/`. Das echte Paket (3 relative Symlinks) wird akzeptiert. tar blockiert gefährliche Links zusätzlich selbst (Reviewer-Messung, GNU tar 1.35; Version auf `ubuntu-latest` nicht prüfbar).
+- **Grenze der Tests:** Ein PR kann den Test selbst ändern; er beweist nicht die Sperre. Er ist eine Strukturprüfung des Auslieferungsjobs (Schritte, `with`-Schlüssel, Pflichtzeilen, Verbotsmuster), keine vollständige Allowlist; neue Verschlechterungen außerhalb dieser Muster erkennt er nicht. Nicht lokal prüfbar: `actionlint` (nicht installierbar, Netz), das echte Verhalten von upload/download-artifact auf GitHub.
 
 Noch zu erbringen **nach** Einrichtung (ohne `deploy` anzufassen; `deploy-test` ist im Regelsatz mit aufgeführt, vorher einmal mit dem Deploy-Key anlegen):
 - A (muss scheitern): Wegwerf-PR-Zweig mit `permissions: contents: write` und `git push -f origin HEAD:refs/heads/deploy-test` per `GITHUB_TOKEN`. Erwartet: abgewiesen.

@@ -76,7 +76,8 @@ jobs:
   ausliefern:
     name: Auf Zweig deploy legen
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Nur im öffentlichen Repository: Pflicht-Freigaben der Umgebung gelten in privaten Repos je nach Tarif nicht. So bleibt der Job dann stehen statt ohne Klick zu laufen.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.repository.private == false
     runs-on: ubuntu-latest
     environment: auslieferung
     permissions:
@@ -93,8 +94,9 @@ jobs:
           set -euo pipefail
           T="$RUNNER_TEMP/eingang/paket.tgz"
           echo "$ERWARTET  $T" | sha256sum -c -
-          # Nichts Fremdes: keine absoluten Pfade, kein "..", kein eingebettetes .git
-          if tar -tzf "$T" | grep -E '^/|(^|/)\.\.(/|$)|(^|/)\.git(/|$)'; then echo "Paket enthält unzulässige Pfade"; exit 1; fi
+          # Nichts Fremdes: keine absoluten Pfade, kein "..", kein .git oder .github im Paket, keine Hardlinks, keine Symlinks auf absolute Ziele
+          if tar -tzf "$T" | grep -E '^/|(^|/)\.\.(/|$)|(^|/)\.git(hub)?(/|$)'; then echo "Paket enthält unzulässige Pfade"; exit 1; fi
+          if tar -tvzf "$T" | grep -E '^h| -> /'; then echo "Paket enthält unzulässige Links"; exit 1; fi
           mkdir "$RUNNER_TEMP/dist"
           tar -xzf "$T" -C "$RUNNER_TEMP/dist" --no-same-owner
       - name: Paket auf den Zweig deploy legen
@@ -106,12 +108,14 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           # Host-Schlüssel von github.com fest eingetragen, nicht per ssh-keyscan geholt (EINRICHTUNG.md)
           printf '%s\n' "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > ~/.ssh/known_hosts
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           cd "$RUNNER_TEMP/dist"
           git init -q -b deploy
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git config core.hooksPath /dev/null
+          printf '* -filter -text -ident\n' > .git/info/attributes
           git add -A -f
           git commit -q -m "Paket aus ${GITHUB_SHA}"
           git push -f "git@github.com:${GITHUB_REPOSITORY}.git" deploy
