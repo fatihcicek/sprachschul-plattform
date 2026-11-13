@@ -17,6 +17,7 @@
 /src/db/                   @fatihcicek
 /src/domain/permissions.ts @fatihcicek
 /src/server/auth.ts        @fatihcicek
+/tests/workflow-invariants.test.ts @fatihcicek
 /vitest.config.*           @fatihcicek
 /next.config.*             @fatihcicek
 /tsconfig.json             @fatihcicek

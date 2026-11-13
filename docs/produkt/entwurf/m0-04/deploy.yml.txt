@@ -15,7 +15,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'deploy' }}
+  # Gruppe 'deploy' nur für Push auf main; alles andere (PR, Dispatch, andere Zweige) bekommt eine eigene Gruppe und kann sie nicht verdrängen.
+  group: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && 'deploy' || format('{0}-{1}', github.workflow, github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -63,6 +64,7 @@ jobs:
     environment: auslieferung
     permissions:
       contents: read
+    # Bekanntes Restrisiko (EINRICHTUNG.md 6): npm ci/bundle laufen im selben Job wie der Schlüssel. Kein Cache hier, damit kein Cache-Inhalt aus anderen Läufen hineinkommt.
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -70,7 +72,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-          cache: npm
       - run: npm ci
       - run: ./scripts/bundle.sh
       - name: Paket auf den Zweig deploy legen

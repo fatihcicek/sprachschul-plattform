@@ -5,6 +5,7 @@
   "conditions": { "ref_name": { "include": ["refs/heads/deploy", "refs/heads/deploy-test"], "exclude": [] } },
   "bypass_actors": [ { "actor_id": null, "actor_type": "DeployKey", "bypass_mode": "always" } ],
   "rules": [
+    { "type": "creation" },
     { "type": "update" },
     { "type": "deletion" },
     { "type": "non_fast_forward" }
