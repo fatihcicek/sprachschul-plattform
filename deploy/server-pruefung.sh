@@ -140,8 +140,8 @@ main() {
   if printf '%s' "$subj" | grep -Eq '^Paket aus [0-9a-f]{40}$'; then subj_out="$subj"; else subj_out="<anderer Text, nicht angezeigt>"; fi
   if printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then echo "Stand: $sha vom $(safe_text "$when")  $subj_out"; else echo "Stand: nicht ermittelbar"; fi
   restart="$APP/tmp/restart.txt"
-  if [ -e "$restart" ] && have stat; then echo "Letzter Neustart-Auslöser (tmp/restart.txt): $(stat -c '%y' -- "$restart" 2>/dev/null || echo 'nicht ermittelbar')"
-  elif [ -e "$restart" ]; then echo "Neustart-Auslöser vorhanden"; else echo "tmp/restart.txt: nicht vorhanden"; fi
+  if { [ -e "$restart" ] || [ -L "$restart" ]; } && have stat; then echo "Letzter Neustart-Auslöser (tmp/restart.txt): $(stat -c '%y' -- "$restart" 2>/dev/null || echo 'nicht ermittelbar')"
+  elif [ -e "$restart" ] || [ -L "$restart" ]; then echo "Neustart-Auslöser vorhanden"; else echo "tmp/restart.txt: nicht vorhanden"; fi
   logf="$HOME/schule_deploy.log"
   if [ -r "$logf" ]; then
     pat='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}[-+][0-9:]{4,5} aktualisiert auf Paket aus [0-9a-f]{40}$'
@@ -156,8 +156,10 @@ main() {
 
   section "Cronjob für die Auslieferung (nur Zeitfelder und Programmname, nie der Befehl)"
   if need crontab; then
-    cron=$(crontab -l 2>/dev/null | grep -Ev '^[[:space:]]*(#|$)' || true)
+    cron_raw=$(crontab -l 2>/dev/null); cron_rc=$?
+    cron=$(printf '%s\n' "$cron_raw" | grep -aEv '^[[:space:]]*(#|$)' 2>/dev/null || true)
     mine=0; other=0
+    if [ "$cron_rc" -ne 0 ]; then echo "nicht ermittelbar: crontab ließ sich nicht lesen (keine Berechtigung oder kein Cron für dieses Konto)"; cron=""; fi
     while IFS= read -r line; do
       [ -z "$line" ] && continue
       if printf '%s' "$line" | grep -qiE 'schule|namecheap-update|deploy'; then
@@ -184,7 +186,7 @@ main() {
         echo "Zeit:$times  Programm: $prog"
       else other=$((other+1)); fi
     done <<<"$cron"
-    [ "$mine" -eq 0 ] && echo "(kein passender Eintrag gefunden)"
+    [ "$cron_rc" -eq 0 ] && [ "$mine" -eq 0 ] && echo "(kein passender Eintrag gefunden)"
     echo "(weitere Einträge, nicht angezeigt: $other)"
   fi
 
@@ -205,7 +207,7 @@ main() {
   else
     echo "Name: $(base_name "$DATA_DIR")"
     if have stat; then echo "Rechte und zuletzt geändert: $(stat -L -c '%A  %y' -- "$DATA_DIR" 2>/dev/null || echo 'nicht ermittelbar')"; else echo "nicht ermittelbar: Programm \"stat\" fehlt"; fi
-    if have du; then echo "Größe: $(du -sh -- "$DATA_DIR" 2>/dev/null | cut -f1)"; else echo "nicht ermittelbar: Programm \"du\" fehlt"; fi
+    if have du; then echo "Größe: $(du -shL -- "$DATA_DIR" 2>/dev/null | cut -f1)"; else echo "nicht ermittelbar: Programm \"du\" fehlt"; fi
     real_data=$(cd -P -- "$DATA_DIR" 2>/dev/null && pwd -P || true)
     real_app=$(cd -P -- "$APP" 2>/dev/null && pwd -P || true)
     if [ -z "$real_data" ] || [ -z "$real_app" ]; then
@@ -236,7 +238,7 @@ main() {
 
   section "Laufende Node-/Passenger-Prozesse dieses Kontos (nur Nummer, Laufzeit, Programmname)"
   if need ps && need id; then
-    procs=$(ps -u "$(id -un)" -o pid=,etime=,comm= 2>/dev/null | grep -E '^ *[0-9]+ +[0-9:-]+ +(node|lsnode|passenger|Passenger[A-Za-z]*)$' || true)
+    procs=$(ps -u "$(id -un)" -o pid=,etime=,comm= 2>/dev/null | grep -E '^ *[0-9]+ +[0-9:-]+ +(node|lsnode|passenger|PassengerAgent|PassengerWatchd|PassengerHelper)$' || true)
     [ -n "$procs" ] && printf '%s\n' "$procs"
     echo "Anzahl: $(printf '%s' "$procs" | grep -c . || true)"
   fi
