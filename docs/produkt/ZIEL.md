@@ -173,21 +173,38 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 - Keine echten Personendaten in Entwicklung/Test; kein Deploy, keine Änderung der Produktionsdaten ohne Freigabe.
 - Repository soll privat werden, aber erst nach einem getesteten, lesenden Zugang für den Server.
 
-## 8. Offene Produktfragen
+## 8. Produktfragen
 
-Antworten werden hier eingetragen. Jede Frage nennt die Annahme, mit der gearbeitet wird, falls nichts anderes gesagt wird.
+Nur fünf Fragen verändern die Planung wesentlich und brauchen deine Entscheidung. Alle anderen sind als Arbeitsannahme geführt: Es wird damit gebaut, du kannst sie jederzeit ändern, und eine Änderung kostet nur dann viel, wenn sie nach dem Bau der betroffenen Funktion kommt (dann steht es in der Spalte „Kosten einer späteren Änderung“).
 
-| Nr. | Frage | Arbeitsannahme | Blockiert |
-| --- | --- | --- | --- |
-| 1 | Wie bezahlen Schulen (pro Teilnehmenden, pro Lehrkraft, pauschal)? Soll der Pilot noch ohne Bezahlfunktion laufen? | Pilot ohne Bezahlfunktion, Abrechnung von Hand | M9 |
-| 2 | Welche Übungstypen zuerst, und wer schreibt die Übungen (nur Lehrkräfte der Schule, oder gibt es eine gemeinsame Bibliothek von dir)? | Lehrkräfte schreiben eigene Übungen; fünf Typen: Auswahl, Lückentext, Zuordnen, Reihenfolge, Kurzantwort | M4 |
-| 3 | Sollen Teilnehmende untereinander schreiben können, oder nur mit der Lehrkraft? | nur Lehrkraft ↔ Teilnehmende und Ankündigungen je Kurs | M6 |
-| 4 | Was muss der Live-Raum zuerst können (Video, Ton, Bildschirm, Chat, Gruppenräume, Aufnahme)? | Video, Ton, Bildschirm teilen, Chat; keine Aufnahme (Einwilligungen nötig) | M5 |
-| 5 | Welche Dokumente brauchen Schulen (Teilnahmebescheinigung, Zertifikat, Lernstandsbericht)? | Teilnahmebescheinigung als PDF | M6 |
-| 6 | Pilot: Welche Schule, welche Kurse, wie viele Personen, ab wann, BAMF-Kurse ja/nein? | Sprachen Plus e.V., wenige Kurse, zunächst ohne BAMF-Funktionen | M5 (Lasttest), M8 |
-| 7 | Welches Monatsbudget gilt für Hosting (Datenbank in der EU, Dateiablage, Videoserver, E-Mail)? | Nur Kosten, die du vorher freigibst; bis dahin Testumgebung wie heute | M0, M3, M5, M6, M8 |
-| 8 | Welche Oberflächensprachen sind nötig (nur Deutsch, oder auch Englisch/Arabisch/Türkisch für Teilnehmende)? | Deutsch; Texte so bauen, dass weitere Sprachen später möglich sind | M2 |
-| 9 | Sollen Teilnehmende Dateien und Sprachaufnahmen abgeben (Sprechaufgaben)? | ja, Audio und Bilder in Aufgaben | M3 |
+### 8.1 Entscheidungen, die du treffen musst
+
+| Nr. | Frage | Arbeitsannahme | Blockiert | Empfehlung |
+| --- | --- | --- | --- | --- |
+| 2 | Welche Übungstypen zuerst, und wer schreibt die Übungen (nur Lehrkräfte der Schule, oder auch eine gemeinsame Bibliothek von dir)? | Lehrkräfte schreiben eigene Übungen; fünf Typen: Auswahl, Lückentext, Zuordnen, Reihenfolge, Kurzantwort | M4 | Mit fünf Typen und Schul-eigenen Übungen starten; gemeinsame Bibliothek erst nach dem Pilot |
+| 4 | Was muss der Live-Raum zuerst können? | Video, Ton, Bildschirm teilen, Chat; keine Aufnahme (Einwilligungen nötig), keine Gruppenräume | M5 | So lassen; Gruppenräume sind eine zweite Ausbaustufe |
+| 6 | Pilot: Welche Schule, welche Kurse, wie viele Personen, ab wann, BAMF-Kurse ja/nein? | Sprachen Plus e.V., wenige Kurse, zunächst ohne BAMF-Funktionen | M5 (Lasttest), M8 | Erst nach M3 festlegen; bis dahin gilt die Annahme |
+| 7 | Welches Monatsbudget gilt für Hosting (Datenbank in der EU, Dateiablage, Videoserver, E-Mail)? | Nur Kosten, die du vorher freigibst; bis dahin Testumgebung wie heute | M0, M3, M5, M6, M8 | Ein Betrag je Posten, damit Entscheidungen ohne Rückfrage möglich sind, sobald ein Posten unter dem Betrag bleibt |
+| 10 | Soll Kurswerk auch Präsenz- und Mischkurse verwalten (Räume, Anmeldung, Warteliste, Stundenplan), oder zunächst nur Online-Kurse? | Ja: Verwaltung für beides; Anmeldeformular und Warteliste in einer späteren Stufe von M1 | M1-11, M6-06 | Raum und Kapazität in M1, Anmeldeformular erst nach dem Pilot, falls der Pilot es nicht verlangt |
+
+### 8.2 Arbeitsannahmen (du kannst widersprechen, ohne dass etwas blockiert)
+
+| Nr. | Thema | Annahme | Betrifft | Kosten einer späteren Änderung |
+| --- | --- | --- | --- | --- |
+| 1 | Bezahlung | Pilot ohne Bezahlfunktion, Abrechnung von Hand; Preismodell entscheidest du vor M9 | M9 | keine, solange M9 nicht begonnen hat |
+| 3 | Nachrichten | nur Lehrkraft ↔ Teilnehmende und Ankündigungen je Kurs; keine Nachrichten zwischen Teilnehmenden | M6 | gering; später erweiterbar |
+| 5 | Dokumente | Teilnahmebescheinigung als PDF; weitere Dokumente nach dem Pilot | M6 | gering |
+| 8 | Oberflächensprache | Deutsch; Texte so bauen, dass weitere Sprachen möglich sind | M2 | gering, wenn Texte zentral liegen |
+| 9 | Abgaben | Teilnehmende geben Dateien, Bilder und Sprachaufnahmen ab | M3 | mittel (Speicher, Größengrenzen) |
+
+## 8a. Abgleich mit dem tatsächlichen Stand (13.11.2026)
+
+Diese Spezifikation wurde gegen Code, Datenbank-Migrationen, Tests und GitHub geprüft. Belegt heißt: Ausgabe oder Datei gesehen; ungeprüft heißt: nicht nachgesehen.
+
+- **Belegt:** 22 mandantengebundene Tabellen mit RLS und FORCE RLS; Rechte-Tabelle in `src/domain/permissions.ts`; Aufgaben mit Fristen; Anwesenheit, Protokoll, Klassenbuch; Hauptzweig ohne Branch-Schutz; Deploy-Workflow mit Schreibrecht für Pull-Request-Läufe.
+- **Widersprüche, die behoben oder in M0 eingeplant sind:** README veraltet (M0-12); `CLAUDE.md` nennt Next.js 15, installiert ist 16 (M0-11); frühere Fassung behauptete fehlende Fristen (korrigiert).
+- **Bisher fehlende Funktionen, jetzt im Plan:** Präsenzkurse, Räume, Anmeldung, Warteliste (Frage 10, M1); Stundenplan und Vertretung (M6); Noten und Zeugnisse (nur falls Frage 5 sie verlangt); Aktivitätsprotokoll sichtbar für Leitung (M1); Suche und Filter (M1, M2); Datenexport einer Schule (M8); Support-Weg für Schulen (M8).
+- **Ungeprüft:** Serverzustand, Datenablage der Testumgebung, Sicherungen, Dauer des Pilot-Betriebs (siehe §9).
 
 ## 9. Ungeprüftes, das früh geklärt werden muss
 
