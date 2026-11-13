@@ -3,14 +3,16 @@
 # Zeigt, wie der Server das Paket abholt und wo die Datenbank liegt. Ändert nichts, startet nichts neu.
 #
 # Bauart: Das Skript gibt nur aus, was es selbst formuliert hat, oder streng geprüfte Werte
-# (Zeitpunkte, Zahlen, Commit-Nummern, Ordnernamen, Rechte, Programmnamen). Rohe Zeilen aus Konfigurationen,
-# Cronjobs, Protokollen oder Fehlermeldungen werden nie ausgegeben. Dazu kommt ein letzter Filter, der
-# verdächtige Zeilen entfernt. Eine Garantie ist das trotzdem nicht: Die Ausgabe vor dem Einfügen kurz lesen.
+# (Zeitpunkte, Zahlen, Commit-Nummern, Ordnernamen, Rechte, Programmnamen). Zeilen aus Konfigurationen, Cronjobs,
+# Protokollen oder Fehlermeldungen werden nicht roh ausgegeben. Ein letzter Filter entfernt verdächtige Zeilen.
+# Eine Garantie ist das nicht: Die Ausgabe vor dem Einfügen kurz lesen.
 #
 # Was in der Ausgabe stehen kann (personenbezogen oder betrieblich, aber keine Zugangsdaten):
-#   Adresse des Repositories (Rechner und Name, z. B. github.com:konto/repo), Namen des Datenbankordners und
-#   gefundener Sicherungsdateien, Zeitpunkte, Commit-Nummern, Rechte der Ordner, Anzahl der Prozesse.
-#   Nicht enthalten: Benutzername, vollständige Pfade, Cron-Befehle, Passwörter, Tokens, Schlüssel.
+#   Adresse des Repositories (Rechner und Name, z. B. github.com:konto/repo), Name des Datenbankordners,
+#   Zeitpunkte, Commit-Nummern, Rechte der Ordner, Anzahl der Prozesse und Anzahl gefundener Sicherungen.
+#   Nicht ausgegeben werden Cron-Befehle, vollständige Pfade, Dateinamen von Sicherungen, Passwörter, Tokens,
+#   Schlüssel. Der Benutzername kann trotzdem vorkommen, wenn er Teil der Repository-Adresse oder eines
+#   Ordnernamens ist: darauf achten.
 #
 # Aufruf:  bash server-pruefung.sh [Datenbankordner]
 #   Datenbankordner = der Pfad aus DATABASE_URL hinter "pglite:" (cPanel > Node.js-App > Umgebungsvariablen),
@@ -21,6 +23,8 @@ export LC_ALL=C
 APP="${APP:-$HOME/schule_app}"
 ARG="${1:-}"
 
+# Git nur lesend und ohne Programme aus der Repo-Konfiguration (fsmonitor, Hooks).
+g() { git -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 section() { printf '\n== %s\n' "$1"; }
 # Ehrliche Meldung statt stiller Lücke, wenn ein Programm fehlt.
@@ -28,7 +32,10 @@ need() { have "$1" && return 0; echo "nicht ermittelbar: Programm \"$1\" fehlt a
 # Rechner und Name aus einer Git-Adresse, alles bis zum letzten "@" und das Schema weg.
 strip_url() { printf '%s' "$1" | sed -E 's#^[A-Za-z0-9+.-]+://##; s#^.*@##'; }
 # Nur harmlose Zeichen durchlassen, sonst Platzhalter.
-safe_text() { if printf '%s' "$1" | grep -Eq '^[A-Za-z0-9._:/+ -]{1,120}$'; then printf '%s' "$1"; else printf '<nicht darstellbar>'; fi; }
+safe_text() {
+  case "$1" in *$'\n'*|*$'\r'*) printf '<nicht darstellbar>'; return ;; esac
+  if printf '%s' "$1" | grep -Eq '^[A-Za-z0-9._:/+ -]{1,120}$'; then printf '%s' "$1"; else printf '<nicht darstellbar>'; fi
+}
 # Name der letzten Pfadstelle, nur harmlose Zeichen.
 base_name() { safe_text "$(basename -- "$1" 2>/dev/null)"; }
 # Git ohne Benutzer-/Systemkonfiguration und ohne Rückfragen, außerhalb des Programmordners.
@@ -46,7 +53,11 @@ main() {
 
   # Ohne Git und ohne Programmordner ist keine sinnvolle Aussage möglich: klar abbrechen.
   if ! need git; then echo "ABBRUCH: ohne git keine Prüfung möglich."; return 2; fi
-  if ! git -C "$APP" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  gv=$(git --version 2>/dev/null | sed -E 's/[^0-9.]//g'); gmaj=${gv%%.*}; gmin=${gv#*.}; gmin=${gmin%%.*}
+  if [ "${gmaj:-0}" -lt 2 ] && { [ "${gmaj:-0}" -lt 1 ] || [ "${gmin:-0}" -lt 9 ]; }; then
+    echo "ABBRUCH: Die Git-Version auf diesem Server ist zu alt für diese Prüfung (Version wird nicht ausgewertet). Bitte melden."; return 2
+  fi
+  if ! g -C "$APP" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo
     echo "ABBRUCH: Der Programmordner ist kein Git-Ordner oder gehört einem anderen Benutzer (Name wird nicht angezeigt). Ist er anders benannt? Dann so aufrufen:"
     echo "  APP=/pfad/zum/programmordner bash server-pruefung.sh"
@@ -54,16 +65,16 @@ main() {
   fi
 
   section "Programmordner"
-  if have stat; then echo "Name: $(base_name "$APP"), Rechte und Änderungszeit: $(stat -c '%A  %y' -- "$APP" 2>/dev/null || echo 'nicht ermittelbar')"
+  if have stat; then echo "Name: $(base_name "$APP"), Rechte und Änderungszeit: $(stat -L -c '%A  %y' -- "$APP" 2>/dev/null || echo 'nicht ermittelbar')"
   else echo "nicht ermittelbar: Programm \"stat\" fehlt"; fi
 
   section "Woher holt der Server das Paket?"
-  url=$(git -C "$APP" config --get remote.origin.url 2>/dev/null || true)
+  url=$(g -C "$APP" config --get remote.origin.url 2>/dev/null || true)
   if [ -z "$url" ]; then echo "Keine Adresse \"origin\" eingetragen."
   else echo "Adresse (ohne Zugangsdaten): $(safe_text "$(strip_url "$url")")"; fi
 
   section "Wie meldet sich der Server bei GitHub an?"
-  helper=$(git -C "$APP" config --get-urlmatch credential.helper "$url" 2>/dev/null || true)
+  helper=$(g -C "$APP" config --get-urlmatch credential.helper "$url" 2>/dev/null || true)
   case "$helper" in
     "")     echo "Anmeldehilfe (credential.helper): keine" ;;
     store*) echo "Anmeldehilfe (credential.helper): store (Zugangsdaten liegen in einer Datei)" ;;
@@ -111,8 +122,10 @@ main() {
   [ -f "$HOME/.netrc" ] && has_auth=ja
   if [ "$kind" = unbekannt ] || [ "$kind" = http ]; then
     echo "NICHT EINDEUTIG: Die Adresse ist ungewöhnlich. Bitte die Ausgabe zurückgeben, bevor etwas umgestellt wird."
+  elif [ "$kind" = ssh ] && [ "${pubkeys:-0}" -eq 0 ] && [ -z "$helper" ]; then
+    echo "WARNUNG: SSH-Adresse, aber kein öffentlicher Schlüssel im Konto gefunden. Der Abruf funktioniert vermutlich nur, solange das Repository öffentlich ist."
   elif [ "$has_auth" = ja ]; then
-    echo "Der Server meldet sich bei GitHub an. Ob die Anmeldung für ein privates Repository ausreicht (Leserecht), muss"
+    echo "Auf dem Server ist eine Anmeldung eingetragen (ob sie funktioniert, ist damit nicht gesagt). Ob die Anmeldung für ein privates Repository ausreicht (Leserecht), muss"
     echo "vor dem Umstellen geprüft werden (siehe docs/betrieb.md, Abschnitt Privatstellen)."
   else
     echo "ACHTUNG: Der Server nutzt KEINE Anmeldung. Nach dem Privatstellen schlägt jeder Abruf fehl,"
@@ -121,9 +134,9 @@ main() {
   fi
 
   section "Letzter Stand und Abruf-Protokoll"
-  sha=$(git -C "$APP" log -1 --format=%H 2>/dev/null || true)
-  when=$(git -C "$APP" log -1 --format=%ad --date=iso 2>/dev/null || true)
-  subj=$(git -C "$APP" log -1 --format=%s 2>/dev/null || true)
+  sha=$(g -C "$APP" log -1 --format=%H 2>/dev/null || true)
+  when=$(g -C "$APP" log -1 --format=%ad --date=iso 2>/dev/null || true)
+  subj=$(g -C "$APP" log -1 --format=%s 2>/dev/null || true)
   if printf '%s' "$subj" | grep -Eq '^Paket aus [0-9a-f]{40}$'; then subj_out="$subj"; else subj_out="<anderer Text, nicht angezeigt>"; fi
   if printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then echo "Stand: $sha vom $(safe_text "$when")  $subj_out"; else echo "Stand: nicht ermittelbar"; fi
   restart="$APP/tmp/restart.txt"
@@ -132,10 +145,10 @@ main() {
   logf="$HOME/schule_deploy.log"
   if [ -r "$logf" ]; then
     pat='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}[-+][0-9:]{4,5} aktualisiert auf Paket aus [0-9a-f]{40}$'
-    total=$(grep -c . "$logf" 2>/dev/null || true)
-    ok=$(grep -Ec "$pat" "$logf" 2>/dev/null || true)
+    total=$(grep -ac . < "$logf" 2>/dev/null || true)
+    ok=$(grep -aEc "$pat" < "$logf" 2>/dev/null || true)
     echo "Protokoll: ${total:-0} Zeilen, davon ${ok:-0} im erwarteten Format. Die letzten 5 davon:"
-    grep -E "$pat" "$logf" 2>/dev/null | tail -n 5
+    grep -aE "$pat" < "$logf" 2>/dev/null | tail -n 5
     echo "(Zeilen in anderem Format werden nicht angezeigt: $(( ${total:-0} - ${ok:-0} )))"
   else
     echo "Kein lesbares Protokoll (schule_deploy.log) gefunden."
@@ -152,12 +165,19 @@ main() {
         # genau fünf Zeitfelder, jedes streng geprüft; der Rest (Befehl) wird nie ausgegeben
         read -r -a parts <<<"$line"
         times=""; good=0
+        num='[0-9*]+([-/,][0-9*]+)*'
+        mon='(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)'; dow='(sun|mon|tue|wed|thu|fri|sat)'
         if [ "${#parts[@]}" -ge 6 ]; then
           good=1
           for i in 0 1 2 3 4; do
-            printf '%s' "${parts[$i]}" | grep -Eq '^[0-9*/,A-Za-z-]{1,30}$' || good=0
+            f=$(printf '%s' "${parts[$i]}" | tr 'A-Z' 'a-z')
+            case $i in 3) alt="$mon" ;; 4) alt="$dow" ;; *) alt="" ;; esac
+            if [ -n "$alt" ]; then printf '%s' "$f" | grep -Eq "^($num|$alt([-,]$alt)*)$" || good=0
+            else printf '%s' "$f" | grep -Eq "^$num$" || good=0; fi
             times="$times ${parts[$i]}"
           done
+        elif [ "${#parts[@]}" -ge 2 ] && printf '%s' "${parts[0]}" | grep -Eq '^@(reboot|hourly|daily|weekly|monthly|yearly|annually|midnight)$'; then
+          good=1; times=" ${parts[0]}"
         fi
         [ "$good" -eq 1 ] || times=" <Zeitfelder nicht darstellbar>"
         if printf '%s' "$line" | grep -q 'namecheap-update\.sh'; then prog="namecheap-update.sh"; else prog="<anderer Befehl, nicht angezeigt>"; fi
@@ -173,7 +193,7 @@ main() {
   DATA_DIR="${ARG#pglite:}"
   if [ -z "$ARG" ]; then
     echo "nicht angegeben. Aufruf: bash server-pruefung.sh /pfad/zum/datenbankordner"
-  elif printf '%s' "$ARG" | grep -Eq '://|@|=|\?|[[:space:]]' ; then
+  elif case "$ARG" in *$'\n'*|*$'\r'*) true ;; *) printf '%s' "$ARG" | grep -Eq '://|@|=|\?|[[:space:]]' ;; esac; then
     echo "Die Angabe sieht nach einer ganzen Verbindungsadresse oder nach Zugangsdaten aus. Sie wird NICHT angezeigt."
     echo "Bitte nur den Ordnerpfad hinter \"pglite:\" angeben (z. B. /home/konto/schule_daten)."
   elif ! printf '%s' "$DATA_DIR" | grep -Eq '^/[A-Za-z0-9._/-]+$'; then
@@ -184,7 +204,7 @@ main() {
     echo "Ordner \"$(base_name "$DATA_DIR")\" vorhanden, aber für dieses Konto nicht lesbar: keine Aussage möglich."
   else
     echo "Name: $(base_name "$DATA_DIR")"
-    if have stat; then echo "Rechte und zuletzt geändert: $(stat -c '%A  %y' -- "$DATA_DIR" 2>/dev/null || echo 'nicht ermittelbar')"; else echo "nicht ermittelbar: Programm \"stat\" fehlt"; fi
+    if have stat; then echo "Rechte und zuletzt geändert: $(stat -L -c '%A  %y' -- "$DATA_DIR" 2>/dev/null || echo 'nicht ermittelbar')"; else echo "nicht ermittelbar: Programm \"stat\" fehlt"; fi
     if have du; then echo "Größe: $(du -sh -- "$DATA_DIR" 2>/dev/null | cut -f1)"; else echo "nicht ermittelbar: Programm \"du\" fehlt"; fi
     real_data=$(cd -P -- "$DATA_DIR" 2>/dev/null && pwd -P || true)
     real_app=$(cd -P -- "$APP" 2>/dev/null && pwd -P || true)
@@ -194,25 +214,29 @@ main() {
       case "$real_data/" in
         "$real_app"/*)
           echo "LIEGT IM PROGRAMMORDNER."
-          if [ -n "$(git -C "$APP" ls-files -- "$real_data" 2>/dev/null | head -n 1)" ]; then echo "  ACHTUNG: git verfolgt Dateien darin (ein Abruf könnte sie überschreiben)"
-          else echo "  git verfolgt dort nichts (ein Abruf mit reset --hard lässt unverfolgte Dateien stehen)"; fi
-          if git -C "$APP" check-ignore -q -- "$real_data" 2>/dev/null; then echo "  von git ignoriert"; else echo "  nicht von git ignoriert" ; fi ;;
+          if [ -n "$(g -C "$APP" ls-files -- "$real_data" 2>/dev/null | head -n 1)" ]; then echo "  ACHTUNG: git verfolgt Dateien darin (ein Abruf kann sie überschreiben oder löschen)"
+          else echo "  git verfolgt dort nichts (reset --hard lässt unverfolgte Dateien stehen, außer das neue Paket bringt gleichnamige mit)"; fi
+          if g -C "$APP" check-ignore -q -- "$real_data" 2>/dev/null; then echo "  von git ignoriert"; else echo "  nicht von git ignoriert" ; fi ;;
         *) echo "liegt außerhalb des Programmordners (ein Abruf berührt ihn nicht)" ;;
       esac
     fi
-    if have df; then echo "Freier Speicher dort: $(df -h -- "$DATA_DIR" 2>/dev/null | awk 'NR==2{print $4" frei von "$2}')"; else echo "nicht ermittelbar: Programm \"df\" fehlt"; fi
+    if have df; then echo "Freier Speicher dort: $(df -Ph -- "$DATA_DIR" 2>/dev/null | awk 'NR==2{print $4" frei von "$2}')"; else echo "nicht ermittelbar: Programm \"df\" fehlt"; fi
     if have find && [ -n "$real_data" ]; then
       parent=$(dirname -- "$real_data")
-      found=$(find -- "$parent" -maxdepth 2 \( -iname '*backup*' -o -iname '*sicherung*' -o -iname '*dump*' \) 2>/dev/null | head -n 10)
+      found=$(find -- "$parent" -maxdepth 2 \( -iname '*backup*' -o -iname '*sicherung*' -o -iname '*dump*' \) 2>/dev/null)
       cnt=$(printf '%s' "$found" | grep -c . || true)
-      echo "Dateien/Ordner mit backup/sicherung/dump im Namen (neben dem Datenordner, bis 10): ${cnt:-0}"
-      printf '%s\n' "$found" | while IFS= read -r p; do [ -n "$p" ] && echo "  $(base_name "$p")"; done
-    else echo "Sicherungssuche: nicht ermittelbar"; fi
+      echo "Dateien/Ordner mit backup/sicherung/dump im Namen (neben dem Datenordner, Tiefe 2): ${cnt:-0}. Namen werden nicht angezeigt."
+      for ext in sql sql.gz tar.gz tgz zip; do
+        n=$(printf '%s\n' "$found" | grep -ciE "\.$ext$" || true)
+        [ "${n:-0}" -gt 0 ] && echo "  davon .$ext: $n"
+      done
+      echo "  (Hinweis: Sicherungen des Hosters außerhalb des Home-Ordners findet diese Suche nicht.)"
+        else echo "Sicherungssuche: nicht ermittelbar"; fi
   fi
 
   section "Laufende Node-/Passenger-Prozesse dieses Kontos (nur Nummer, Laufzeit, Programmname)"
   if need ps && need id; then
-    procs=$(ps -u "$(id -un)" -o pid=,etime=,comm= 2>/dev/null | grep -iE ' (node|passenger|lsnode)' || true)
+    procs=$(ps -u "$(id -un)" -o pid=,etime=,comm= 2>/dev/null | grep -E '^ *[0-9]+ +[0-9:-]+ +(node|lsnode|passenger|Passenger[A-Za-z]*)$' || true)
     [ -n "$procs" ] && printf '%s\n' "$procs"
     echo "Anzahl: $(printf '%s' "$procs" | grep -c . || true)"
   fi

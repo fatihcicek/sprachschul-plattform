@@ -30,10 +30,12 @@ Stand: 12.11.2026. Diese Seite trennt drei Dinge: was **am Code belegt** ist, wa
 
 Der Server wird erst umgestellt, **nachdem** der neue Zugang von Hand getestet wurde, und das Repository wird erst privat, nachdem ein echter Deploy darüber lief.
 
-**Schritt 1: Prüfen (Fatih, nur lesend).** In cPanel das **Terminal** öffnen und die Prüfdatei auf den Server bringen. Zwei Wege, beide ändern nichts:
+**Schritt 1: Prüfen (Fatih, nur lesend).** In cPanel das **Terminal** öffnen. Die Prüfdatei auf den Server bringen, auf einem von zwei Wegen:
 
-- *Herunterladen:* Der Befehl mit Adresse **und Prüfsumme** steht im Pull-Request #24 (festgenagelt auf einen Stand, nicht auf `main`, damit niemand etwas Untergeschobenes bekommt). Nach dem Herunterladen `sha256sum server-pruefung.sh` ausführen und mit der Prüfsumme im PR vergleichen. Erst nach dem Merge von #24 liegt die Datei auch unter `main`; das Herunterladen geht nur, solange das Repository öffentlich ist.
-- *Per Dateimanager:* Datei in cPanel > Dateimanager hochladen (oder neue Datei anlegen und den Text einfügen).
+- *Herunterladen:* Den fertigen Befehl (Adresse eines festen Standes plus Prüfsumme) gibt es in der Nachricht zum Pull-Request #24. Er beginnt mit `cd ~` (in den eigenen Ordner wechseln). Das Herunterladen geht nur, solange das Repository öffentlich ist. Erst nach dem Merge von #24 liegt die Datei auch unter `main`.
+- *Dateimanager:* Neue Datei `server-pruefung.sh` in cPanel > Dateimanager anlegen und den Text einfügen. Der Editor muss Kodierung UTF-8 und Zeilenenden im Unix-Stil (LF) benutzen. Bei Windows-Zeilenenden bricht das Skript mit seltsamen Fehlern ab (`$'\r': command not found`); das ist harmlos, es ändert nichts.
+
+Die Prüfsumme zeigt nur, dass du dieselbe Datei hast, die geprüft wurde, nicht, dass der Pull-Request vertrauenswürdig ist. Vergleichen mit: `echo "<PRÜFSUMME>  server-pruefung.sh" | sha256sum -c` (muss `OK` ausgeben; jede Änderung am Skript ändert die Prüfsumme).
 
 Dann ausführen:
 
@@ -43,7 +45,7 @@ bash server-pruefung.sh /voller/pfad/zum/datenbankordner
 
 Den Datenbankordner findest du in cPanel unter *Node.js-App* bei den Umgebungsvariablen: der Wert von `DATABASE_URL` hinter `pglite:`, zum Beispiel `/home/benutzer/schule_daten`. Nur diesen Pfad angeben, nie die ganze Variable (sieht das Skript eine Adresse oder Zugangsdaten, gibt es die Angabe nicht aus und bricht diesen Teil ab).
 
-Das Skript gibt nur aus, was es selbst formuliert, und streng geprüfte Werte. Rohe Zeilen aus Cronjob, Protokoll, Konfiguration oder Fehlermeldungen kommen nie vor, ein letzter Filter entfernt zusätzlich verdächtige Zeilen. **Das ist keine Garantie, deshalb die Ausgabe vor dem Weitergeben kurz überfliegen.** Sie kann enthalten: Repository-Adresse (Rechner und Name, ohne Zugangsdaten), Namen des Datenbankordners und gefundener Sicherungsdateien, Zeitpunkte, Commit-Nummern, Ordnerrechte, Anzahl der Prozesse. Nicht enthalten sind Benutzername, vollständige Pfade und Cron-Befehle. Fehlt auf dem Server ein Programm, steht „nicht ermittelbar“ in der Ausgabe statt einer stillen Lücke.
+Das Skript gibt nur aus, was es selbst formuliert, und streng geprüfte Werte. Zeilen aus Cronjob, Protokoll, Konfiguration oder Fehlermeldungen werden nicht roh ausgegeben, ein letzter Filter entfernt zusätzlich verdächtige Zeilen. **Das ist keine Garantie, deshalb die Ausgabe vor dem Weitergeben kurz überfliegen.** Sie kann enthalten: Repository-Adresse (Rechner und Name, ohne Zugangsdaten), Name des Datenbankordners, Zeitpunkte, Commit-Nummern, Ordnerrechte, Anzahl der Prozesse und der gefundenen Sicherungen. Der Benutzername kann vorkommen, wenn er Teil der Repository-Adresse oder eines Ordnernamens ist. Fehlt auf dem Server ein Programm, steht „nicht ermittelbar“ statt einer stillen Lücke. Das Skript führt nur lesende Befehle aus und startet nichts neu; es greift anonym auf GitHub zu (Abruf-Test, Portprüfung).
 
 **Schritt 2: Auswertung (Entwicklung).** Wie ruft der Server ab, ist SSH nach außen offen (Port 22 oder 443), wo liegen die Daten?
 
