@@ -4,7 +4,9 @@ Plattform für Sprachschulen und BAMF-Kursträger: Unterricht, Anwesenheit und N
 
 ## Stand
 
-Das Fundament: Datenmodell, Mandantentrennung, Rechte und Anwesenheitslogik, alles mit Tests. Es gibt noch keine Anmeldung und keine Oberflächen; der klickbare Prototyp liegt getrennt vor.
+Lauffähige Testversion (nur erfundene Beispieldaten, noch kein Betrieb mit echten Personendaten): Selbstregistrierung für Schulen mit 7 Tagen Testzeit, Anmeldung, Personen anlegen (einzeln oder aus Tabelle), Kurse anlegen, Unterricht mit Einwahlprotokoll und Anwesenheit, Aufgaben und Abgaben, BAMF-Funktionen pro Schule zuschaltbar. Mandantentrennung und Unveränderlichkeit der Nachweise sind in der Datenbank erzwungen und getestet.
+
+Noch nicht gebaut: Live-Unterricht, Kursmaterial, Übungen, Signaturliste, Zahlung. Die BAMF-Anforderungen mit offenen Punkten stehen in `docs/bamf-anforderungen.md`; es wird keine BAMF-Konformität behauptet. Auslieferung, Datenbank und Sicherung: `docs/betrieb.md`. Arbeitsablauf und Regeln: `CLAUDE.md`.
 
 ## Aufbau
 
@@ -14,9 +16,10 @@ Das Fundament: Datenmodell, Mandantentrennung, Rechte und Anwesenheitslogik, all
 | `drizzle` | SQL-Migrationen. `0001_sicherheit.sql` enthält die Regeln, die in der Datenbank selbst gelten |
 | `src/domain` | Fachlogik ohne Datenbank: Anwesenheit, Terminplanung, Rechte |
 | `src/server` | Abläufe mit Datenbank: Anwesenheit vorschlagen, bestätigen, korrigieren |
-| `src/app` | Next.js-Anwendung (bisher nur Startseite und `/api/health`) |
+| `src/app` | Next.js-Anwendung (Oberflächen und Serveraktionen) |
 | `tests` | Tests, darunter `database.test.ts` gegen eine echte PostgreSQL-Datenbank |
-| `docs` | BAMF-Anforderungen mit Quellen und offenen Punkten |
+| `docs` | BAMF-Anforderungen mit Quellen und offenen Punkten, Betrieb (`betrieb.md`) |
+| `deploy`, `scripts` | Vorlage für den Abruf auf dem Server, Prüfskript für den Server, Betreiberwerkzeuge, Paketbau (die Migrationsprüfung kommt mit Pull Request #23) |
 
 ## Drei Grundregeln
 
