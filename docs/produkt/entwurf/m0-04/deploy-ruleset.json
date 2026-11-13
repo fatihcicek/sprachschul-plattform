@@ -1,0 +1,12 @@
+{
+  "name": "deploy-nur-deploy-key",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/deploy", "refs/heads/deploy-test"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": null, "actor_type": "DeployKey", "bypass_mode": "always" } ],
+  "rules": [
+    { "type": "update" },
+    { "type": "deletion" },
+    { "type": "non_fast_forward" }
+  ]
+}

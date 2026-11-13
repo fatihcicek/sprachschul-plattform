@@ -1,0 +1,22 @@
+# ENTWURF (nicht aktiv). Wird als .github/CODEOWNERS gebraucht. Fatih besitzt alle geschützten Pfade.
+# Wirkt nur zusammen mit "Require review from Code Owners" im Regelsatz und einer vom Agenten getrennten GitHub-Identität.
+/.github/                  @fatihcicek
+/deploy/                   @fatihcicek
+/scripts/                  @fatihcicek
+/.githooks/                @fatihcicek
+/.claude/                  @fatihcicek
+/CLAUDE.md                 @fatihcicek
+/docs/produkt/ZIEL.md      @fatihcicek
+/docs/produkt/BACKLOG.md   @fatihcicek
+/docs/produkt/AUTONOMIE.md @fatihcicek
+/docs/produkt/FREIGABEN.md @fatihcicek
+/STOP                      @fatihcicek
+/package.json              @fatihcicek
+/package-lock.json         @fatihcicek
+/drizzle/                  @fatihcicek
+/src/db/                   @fatihcicek
+/src/domain/permissions.ts @fatihcicek
+/src/server/auth.ts        @fatihcicek
+/vitest.config.*           @fatihcicek
+/next.config.*             @fatihcicek
+/tsconfig.json             @fatihcicek
