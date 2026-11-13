@@ -1,0 +1,94 @@
+// ENTWURF (nicht aktiv). Wird tests/workflow-invariants.test.ts. Braucht devDependency "yaml".
+// Frühwarnung, kein Beweis: Ein Pull Request kann diesen Test selbst ändern. Die eigentliche Sperre sind
+// Umgebungsregel + Regelsatz auf "deploy" (EINRICHTUNG.md, Proben A-D). Der Test ist über CODEOWNERS geschützt.
+import { readFileSync, readdirSync } from "node:fs";
+import { parse } from "yaml";
+import { describe, expect, it } from "vitest";
+
+const dir = ".github/workflows";
+const files = readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));
+const text = (f: string) => readFileSync(`${dir}/${f}`, "utf8");
+const load = (f: string) => parse(text(f)) as any;
+const jobsOf = (wf: any) => Object.entries<any>(wf.jobs ?? {});
+const noWrite = (p: unknown, where: string) => {
+  expect(typeof p, `${where}: permissions muss eine Tabelle sein (kein write-all-Text)`).toBe("object");
+  for (const v of Object.values(p as Record<string, string>)) expect(v, where).not.toBe("write");
+};
+
+describe("alle Workflows", () => {
+  it("es gibt mindestens einen Workflow", () => expect(files.length).toBeGreaterThan(0));
+  for (const f of files) {
+    const wf = load(f);
+    const raw = text(f);
+    it(`${f}: Trigger nur push, pull_request, workflow_dispatch, schedule`, () => {
+      const on = typeof wf.on === "object" && !Array.isArray(wf.on) ? Object.keys(wf.on) : [].concat(wf.on);
+      for (const t of on) expect(["push", "pull_request", "workflow_dispatch", "schedule"], `${f}: ${t}`).toContain(t);
+    });
+    it(`${f}: Rechte oben und je Job ohne write`, () => {
+      noWrite(wf.permissions, `${f}: oben`);
+      for (const [n, j] of jobsOf(wf)) if (j.permissions !== undefined) noWrite(j.permissions, `${f}:${n}`);
+    });
+    it(`${f}: keine lokalen Actions, Aktionen auf SHA festgelegt`, () => {
+      for (const m of raw.matchAll(/uses:\s*([^\s#]+)/g)) {
+        expect(m[1]!, `${f}`).not.toMatch(/^\.\//);
+        expect(m[1]!).toMatch(/@[0-9a-f]{40}$/);
+      }
+    });
+    it(`${f}: Checkout ohne gespeicherte Zugangsdaten`, () => {
+      for (const [n, j] of jobsOf(wf))
+        for (const s of j.steps ?? [])
+          if (String(s.uses ?? "").startsWith("actions/checkout")) expect(s.with?.["persist-credentials"], `${f}:${n}`).toBe(false);
+    });
+    it(`${f}: außerhalb von deploy.yml kein Push, keine gh-API, keine Umgebung, kein DEPLOY_KEY`, () => {
+      if (f === "deploy.yml") return;
+      expect(raw).not.toMatch(/group:\s*['"]?deploy|git\s+push|\bgh\s|git\s+-C|environment\s*:|DEPLOY_KEY|toJSON\(\s*secrets|github\.token/);
+    });
+  }
+});
+
+describe("deploy.yml: nur der Job 'ausliefern' schreibt, nur von main aus", () => {
+  const wf = load("deploy.yml");
+  const jobs = Object.fromEntries(jobsOf(wf)) as Record<string, any>;
+  it("genau die Jobs build und ausliefern", () => expect(Object.keys(jobs).sort()).toEqual(["ausliefern", "build"]));
+  it("Trigger genau push (nur main), pull_request, workflow_dispatch", () => {
+    expect(Object.keys(wf.on).sort()).toEqual(["pull_request", "push", "workflow_dispatch"]);
+    expect(wf.on.push.branches).toEqual(["main"]);
+  });
+  it("ausliefern: Umgebung, exakte Bedingung, hängt nur von build ab", () => {
+    expect(jobs.ausliefern.environment).toBe("auslieferung");
+    expect(jobs.ausliefern.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.repository.private == false");
+    expect([].concat(jobs.ausliefern.needs)).toEqual(["build"]);
+  });
+  it("Schlüssel, Umgebung, Secrets und Push gibt es nur in 'ausliefern'", () => {
+    const j = JSON.stringify(jobs.build);
+    expect(j).not.toMatch(/DEPLOY_KEY|secrets\b|github\.token|environment|git\s+push/);
+    expect(JSON.stringify(wf.concurrency)).not.toMatch(/secrets/);
+    expect(text("deploy.yml").match(/secrets\./g)).toHaveLength(1);
+    expect(text("deploy.yml").match(/git\s+push/g)).toHaveLength(1);
+  });
+  it("'ausliefern' führt keinen Projektcode aus: kein Checkout, kein Node/npm, nur Download der Prüf-Datei", () => {
+    const steps: any[] = jobs.ausliefern.steps;
+    const uses = steps.map((x) => String(x.uses ?? "")).filter(Boolean);
+    expect(uses).toHaveLength(1);
+    expect(uses[0]).toMatch(/^actions\/download-artifact@[0-9a-f]{40}$/);
+    const runs = steps.map((x) => String(x.run ?? "")).join("\n");
+    expect(runs).not.toMatch(/\b(npm|npx|node|pnpm|yarn|bash|python3?)\b|(^|\s)\.\/[\w.-]|\bmake\b/m);
+    expect(runs).toContain("sha256sum -c");
+    expect(runs).not.toMatch(/curl|wget|eval|\|\s*(ba)?sh\b|\|\|\s*true|\$\{\{|StrictHostKeyChecking=no|git\s+-C|gh\s/);
+    for (const must of ["set -euo pipefail", "StrictHostKeyChecking=yes", "core.hooksPath /dev/null", "GIT_CONFIG_NOSYSTEM=1", "-filter -text -ident", "Paket enthält unzulässige Pfade", "Paket enthält unzulässige Links", "\\.git(hub)?"])
+      expect(runs, must).toContain(must);
+    expect(steps.map((x) => x.name ?? x.uses)).toEqual([expect.stringMatching(/^actions\/download-artifact@/), "Paket prüfen und entpacken", "Paket auf den Zweig deploy legen"]);
+    expect(Object.keys(steps[0].with).sort()).toEqual(["name", "path"]);
+    expect(JSON.stringify(jobs.ausliefern)).toContain("needs.build.outputs.sha256");
+  });
+  it("Pakettransport: build lädt hoch, nur bei Push auf main, mit Prüfsumme als Job-Ausgabe", () => {
+    const up = (jobs.build.steps as any[]).filter((x) => String(x.uses ?? "").startsWith("actions/upload-artifact"));
+    expect(up).toHaveLength(1);
+    expect(up[0].if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(jobs.build.outputs.sha256).toContain("steps.paket.outputs.sha256");
+  });
+  it("Pull-Request-Läufe erreichen 'ausliefern' nie", () => {
+    expect(wf.on.pull_request).not.toBeUndefined();
+    expect(jobs.ausliefern.if).not.toMatch(/pull_request/);
+  });
+});

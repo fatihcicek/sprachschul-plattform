@@ -1,0 +1,7 @@
+# Freigaben (Vorlage; Einträge schreibt und committet nur Fatih, je Eintrag ein eigener Pull Request)
+
+Meilenstein: M1
+Startreihenfolge: M1-07, M1-08
+Fragen: 2, 4, 10
+Gilt für Commit: <voller Hash von main>
+Ausgeschlossen: Merge nach main, Auslieferung, Zugangsdaten, Infrastruktur, Produktivdaten

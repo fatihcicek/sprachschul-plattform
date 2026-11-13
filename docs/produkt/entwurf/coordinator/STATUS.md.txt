@@ -1,0 +1,6 @@
+# Status der Aufgaben (Vorlage; Zustand liegt in Git, bei Abweichung gewinnt Git)
+
+Statuswerte: offen, begonnen, in Prüfung, fertig (= im Meilenstein-Zweig, bei M0 auf `main`), blockiert.
+
+| Aufgabe | Status | Zweig / Pull Request | Versuche (CI / Review) | Beleg | Nächster Schritt / Blockade |
+| --- | --- | --- | --- | --- | --- |

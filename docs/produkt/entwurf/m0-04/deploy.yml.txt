@@ -1,0 +1,121 @@
+# ENTWURF M0-04 (nicht aktiv). Ersetzt .github/workflows/deploy.yml, nachdem Fatih die Einrichtung (EINRICHTUNG.md) erledigt hat.
+# Prinzip: Prüfen (build) darf nur lesen und kennt keinen Schlüssel. Das fertige Paket geht als Datei mit Prüfsumme an den Job
+# "ausliefern". Der hat den Schreibschlüssel (Umgebung "auslieferung", nur für main, mit Freigabeklick von Fatih) und führt
+# keinen Code aus dem Projekt aus: kein Checkout, kein npm, nur tar, sha256sum, git und ssh.
+# Selbst wenn ein Pull Request diese Datei ändert, bekommt sein Lauf weder den Schlüssel (Umgebungsregel) noch kann sein
+# GITHUB_TOKEN auf "deploy" schreiben (Regelsatz auf "deploy": nur der Deploy-Key darf aktualisieren).
+name: Prüfen und ausliefern
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Gruppe 'deploy' nur für Push auf main; alles andere (PR, Dispatch, andere Zweige) bekommt eine eigene Gruppe und kann sie nicht verdrängen.
+  group: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && 'deploy' || format('{0}-{1}', github.workflow, github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Prüfen
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    outputs:
+      sha256: ${{ steps.paket.outputs.sha256 }}
+    env:
+      DATABASE_URL: postgresql://kurswerk:kurswerk@localhost:5432/kurswerk
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Datenbankrolle ohne Superuser anlegen
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE ROLE kurswerk LOGIN PASSWORD 'kurswerk' CREATEDB"
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE kurswerk OWNER kurswerk"
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: ./scripts/bundle.sh
+      - name: Paket verpacken (nur Push auf main)
+        id: paket
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          tar -C dist -czf "$RUNNER_TEMP/paket.tgz" .
+          echo "sha256=$(sha256sum "$RUNNER_TEMP/paket.tgz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          name: paket
+          path: ${{ runner.temp }}/paket.tgz
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+  ausliefern:
+    name: Auf Zweig deploy legen
+    needs: build
+    # Nur im öffentlichen Repository: Pflicht-Freigaben der Umgebung gelten in privaten Repos je nach Tarif nicht. So bleibt der Job dann stehen statt ohne Klick zu laufen.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.repository.private == false
+    runs-on: ubuntu-latest
+    environment: auslieferung
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: paket
+          path: ${{ runner.temp }}/eingang
+      - name: Paket prüfen und entpacken
+        env:
+          ERWARTET: ${{ needs.build.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          T="$RUNNER_TEMP/eingang/paket.tgz"
+          echo "$ERWARTET  $T" | sha256sum -c -
+          # Nichts Fremdes: keine absoluten Pfade, kein "..", kein .git oder .github im Paket, keine Hardlinks, keine Symlinks auf absolute Ziele
+          if tar -tzf "$T" | grep -E '^/|(^|/)\.\.(/|$)|(^|/)\.git(hub)?(/|$)'; then echo "Paket enthält unzulässige Pfade"; exit 1; fi
+          if tar -tvzf "$T" | grep -E '^h| -> /'; then echo "Paket enthält unzulässige Links"; exit 1; fi
+          mkdir "$RUNNER_TEMP/dist"
+          tar -xzf "$T" -C "$RUNNER_TEMP/dist" --no-same-owner
+      - name: Paket auf den Zweig deploy legen
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          # Host-Schlüssel von github.com fest eingetragen, nicht per ssh-keyscan geholt (EINRICHTUNG.md)
+          printf '%s\n' "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > ~/.ssh/known_hosts
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          cd "$RUNNER_TEMP/dist"
+          git init -q -b deploy
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git config core.hooksPath /dev/null
+          printf '* -filter -text -ident\n' > .git/info/attributes
+          git add -A -f
+          git commit -q -m "Paket aus ${GITHUB_SHA}"
+          git push -f "git@github.com:${GITHUB_REPOSITORY}.git" deploy
