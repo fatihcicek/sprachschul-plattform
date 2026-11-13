@@ -6,7 +6,7 @@ Stand: 13.11.2026. Gehört zu `ZIEL.md` (Produktumfang und Ist-Stand). **Nichts 
 
 **Meilenstein-Freigabe.** Mit „M1 freigegeben“ darf die Entwicklung den Meilenstein selbst in Aufgaben zerlegen, die Aufgaben umsetzen, prüfen, reviewen und in einem gemeinsamen Meilenstein-Zweig sammeln, ohne dass jemand „weiter“ sagen muss. Die Aufgabenlisten unten sind der Startpunkt und dürfen innerhalb des Meilensteinziels verfeinert, aufgeteilt oder ergänzt werden, nicht darüber hinaus.
 
-**Meilenstein-Zweig.** Jeder Meilenstein bekommt einen Zweig `meilenstein/mN-…`. Aufgaben laufen auf eigenen Zweigen `task/mN-NN-…` und gehen per Pull Request in den Meilenstein-Zweig. Dort darf bei grüner CI und bestandenem unabhängigem Review ohne Rückfrage zusammengeführt werden. Der Meilenstein-Zweig löst **keinen Deploy** aus (Deploy nur bei Push auf `main`). Am Ende steht **ein** Pull Request `meilenstein/mN → main` mit Zusammenfassung in einfacher Sprache, Bildschirmfotos, Testergebnissen, Review-Ergebnissen und offenen Risiken. **Fatih merged diesen einen Pull Request** (und löst damit den Deploy auf die Testumgebung aus).
+**Meilenstein-Zweig.** Jeder Meilenstein bekommt einen Zweig `meilenstein/mN-…`. Aufgaben laufen auf eigenen Zweigen `task/mN-NN-…` und gehen per Pull Request in den Meilenstein-Zweig. Dort darf bei grüner CI und bestandenem unabhängigem Review ohne Rückfrage zusammengeführt werden. Ein Push auf einen Meilenstein- oder Task-Zweig löst **keinen Deploy** aus (belegt: `deploy.yml` legt das Paket nur bei Push auf `main` auf den Zweig `deploy`). **Aber:** `deploy.yml` läuft auch bei jedem Pull Request, ohne Zweigfilter und mit Schreibrecht auf das Repository, und nimmt die Workflow-Datei aus dem Stand des Pull Requests. Ein Pull Request, der `deploy.yml` ändert, könnte daher den Zweig `deploy` selbst überschreiben. **Darum gilt bis M0-04 erledigt ist:** Pull Requests mit Änderungen an `.github/` oder `deploy/` werden nie ohne Fatihs Freigabe zusammengeführt, und Läufe laufen höchstens beaufsichtigt. Am Ende steht **ein** Pull Request `meilenstein/mN → main` mit Zusammenfassung in einfacher Sprache, Bildschirmfotos, Testergebnissen, Review-Ergebnissen und offenen Risiken. **Fatih merged diesen einen Pull Request** (und löst damit den Deploy auf die Testumgebung aus).
 
 **Was die Freigabe eines Meilensteins ausdrücklich mit abdeckt.** Nur das, was im Meilenstein unter „Freigegebene Rechte- und Datenbankänderungen“ steht. Das sind die einzigen Rechteänderungen und Migrationen, die ohne weitere Rückfrage gebaut werden dürfen. Alles Weitere ist ein Stopp-Punkt (Abschnitt 3).
 
@@ -21,11 +21,11 @@ Stand: 13.11.2026. Gehört zu `ZIEL.md` (Produktumfang und Ist-Stand). **Nichts 
 
 ```
 M0 Fundament ──► M1 Verwaltung ──► M2 Kursraum & Lernen ──► M3 Material ──► M4 Übungen
-                                         │                        │
-                                         └──► M5 Live-Raum ◄──────┘ (braucht Entscheidung zu LiveKit-Hosting)
+                                         │
+                                         └──► M5 Live-Raum (braucht Entscheidung zu LiveKit-Hosting)
                        M2 ──► M6 Kommunikation & Bescheinigungen
               M1, M5 ──► M7 BAMF-Baustein (optional je Schule)
-         M0–M4, M6 ──► M8 Pilotreife ──► M9 Betreiber & Abo (erst nach Frage 1)
+   Pilot:  M0–M3 ──► M8 Pilotreife        Produktion: zusätzlich M4, M5, M6 ──► M9 Betreiber & Abo (erst nach Frage 1)
 ```
 
 M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilensteine folgen Fatihs Prioritäten: erst vollständige Schulverwaltung und Unterrichtsablauf, dann Material, Übungen, Klassenraum.
@@ -39,37 +39,37 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 
 - **M0-01 Server-Prüfung durchführen** · C · – · Fatih führt `deploy/server-pruefung.sh` im cPanel-Terminal aus (Pull Request #24, Befehl mit Prüfsumme dort). Akzeptanz: Ausgabe liegt vor; Auswertung steht in `docs/betrieb.md`: Abrufweg, Anmeldung, Datenordner-Lage, Prozessanzahl, Sicherungen.
 - **M0-02 Offene Pull Requests #23–#26 abschließen** · C (Merge durch Fatih) · M0-01 · Akzeptanz: #23 (Geheimnissuche, Paketprüfung, Migrationsprüfung), #24 (Betriebsdoku, Prüfskript), #25 (Skills), #26 (Datenbank-Pool-Fix) gemergt oder bewusst verworfen; nach jedem Merge Deploy-Folge geprüft.
-- **M0-03 Zweigschutz für `main`** · C · M0-01 · Tarif in GitHub Settings > Billing prüfen (Free: Schutz nur bei öffentlichen Repos). Optionen: (a) jetzt einschalten, solange das Repo öffentlich ist; (b) Pro-Tarif und Repo privat. Akzeptanz: Direkt-Push und Force-Push auf `main` werden von GitHub abgelehnt; Pull Request mit grünen Prüfungen verpflichtend; Nachweis per Abfrage der Schutzregeln und einem abgelehnten Test-Push auf einen geschützten Wegwerfzweig. **Ohne diesen Schutz sind alle Aussagen „darf nicht mergen“ nur Absprache.**
+- **M0-03 Zweigschutz für `main`** · C · M0-01 · Tarif in GitHub Settings > Billing prüfen (laut GitHub-Dokumentation gibt es Schutz bei Free nur für öffentliche Repos; der Tarif selbst ist noch nicht bestätigt). Entscheidung gemeinsam mit M0-05: (a) Schutz jetzt einschalten, solange das Repo öffentlich ist, und erst mit bezahltem Tarif privat stellen; (b) Pro-Tarif zuerst. Die Regel muss **auch für Administratoren gelten**, sonst bindet sie ein Agent mit Fatihs Zugang nicht. Akzeptanz: Direkt-Push und Force-Push auf `main` werden von GitHub abgelehnt; Pull Request mit grünen Prüfungen verpflichtend; Nachweis per Abfrage der Schutzregeln und einem abgelehnten Test-Push auf einen geschützten Wegwerfzweig. **Ohne diesen Schutz sind alle Aussagen „darf nicht mergen“ nur Absprache.**
 - **M0-04 Rechte der Auslieferung begrenzen** · C · M0-03 · `deploy.yml` läuft bei Pull Requests mit Schreibrecht. Akzeptanz: Pull-Request-Läufe haben nur Leserecht; Schreibrecht nur im Auslieferungsschritt nach Merge auf `main`; nachgewiesen durch Lesen der Konfiguration und einen Probe-Pull-Request.
-- **M0-05 Privates Repo mit lesendem Server-Zugang** · C · M0-01, M0-04 · Lesender Zugang (Deploy-Schlüssel oder eng begrenztes Token) vorbereitet und **vor** dem Umstellen getestet; kein Geheimnis im Repo, in Logs oder im Paket. Danach Repo privat und Neubau, damit die Next.js-Schlüssel im öffentlichen Zweig `deploy` ersetzt sind. Akzeptanz: Abruf läuft mit Anmeldung nach dem Privatstellen; alter `deploy`-Verlauf nicht mehr öffentlich.
+- **M0-05 Privates Repo mit lesendem Server-Zugang** · C · M0-01, M0-03, M0-04 · Lesender Zugang (Deploy-Schlüssel oder eng begrenztes Token) vorbereitet und **vor** dem Umstellen getestet; kein Geheimnis im Repo, in Logs oder im Paket. Danach Repo privat und Neubau, damit die Next.js-Schlüssel im öffentlichen Zweig `deploy` ersetzt sind. Akzeptanz: Abruf läuft mit Anmeldung nach dem Privatstellen; alter `deploy`-Verlauf nicht mehr öffentlich.
 - **M0-06 Datenbeständigkeit belegen** · C · M0-01 · Akzeptanz: Datenordner liegt außerhalb des Programmordners und wird von keinem Abruf berührt; Testdatensatz überlebt Deploy und Neustart; Überlappung zweier Prozesse beim Neustart geprüft und gelöst.
 - **M0-07 Sicherung und Wiederherstellung** · C · M0-06 · Sicherungsverfahren (ruhende Kopie der PGlite-Daten, später `pg_dump`), Aufbewahrung, Zeitplan. Akzeptanz: Wiederherstellung auf einer **Kopie** erfolgreich getestet; Ablauf dokumentiert; Wiederherstellungszeit gemessen.
-- **M0-08 Befunde zu `permissions.ts` entscheiden und beheben** · B (Rechteänderung, Entscheidung durch Fatih) · – · Teile: (a) Verwaltung kann Einladungslinks von Teilnehmenden anzeigen; (b) Verwaltung kann bestätigte Anwesenheit in allen Kursen korrigieren; (c) `startsOn/endsOn` der Einschreibung wird bei Aufgaben ignoriert; (d) Startprüfung, dass die Datenbankrolle weder Superuser noch `BYPASSRLS` ist; (e) Fehlerabbildung in `createAssignmentAction` und `feedbackAction`. Akzeptanz: je Teil Entscheidung dokumentiert, Test erst rot dann grün, Rechte-Matrix als Test festgeschrieben, Sicherheitsreview BEREIT.
-- **M0-09 Lokale Sicherheits-Hooks (Stufe 3)** · A/C (Dateien in `scripts/`, `.githooks`) · M0-02 · Hooks blockieren nie, wenn Werkzeuge fehlen; CI ist verbindlich. Akzeptanz: Test in frischem Klon mit und ohne gitleaks.
+- **M0-08 Befunde zu `permissions.ts` entscheiden und beheben** · B (Rechteänderung, Entscheidung durch Fatih) · – · Teile: (a) Verwaltung sieht Einladungslinks von Teilnehmenden (bisher bewusste Entscheidung, weil damit ein Konto übernommen werden könnte: bestätigen oder ändern); (b) Verwaltung kann bestätigte Anwesenheit in allen Kursen korrigieren; (c) `startsOn/endsOn` der Einschreibung wird bei Aufgaben ignoriert; (d) Startprüfung, dass die Datenbankrolle weder Superuser noch `BYPASSRLS` ist; (e) Fehlerabbildung in `createAssignmentAction` und `feedbackAction`. Akzeptanz: je Teil Entscheidung dokumentiert, Test erst rot dann grün, Rechte-Matrix als Test festgeschrieben, Sicherheitsreview BEREIT.
+- **M0-09 Lokale Sicherheits-Hooks (Stufe 3)** · B (neue Dateien in `.githooks/` und `scripts/`, nicht `bundle.sh`) · M0-02 · Hooks blockieren nie, wenn Werkzeuge fehlen; CI ist verbindlich. Akzeptanz: Test in frischem Klon mit und ohne gitleaks.
 - **M0-10 Unveränderliche Regeln als Tests (Stufe 4)** · B · M0-08 · Rechte-Matrix, `canManageAccountOf`/`canAddPerson`, Mandantentrennung je Tabelle (Meta-Test), Datenbankrolle, Unveränderlichkeit. Akzeptanz: Mutationsprobe zeigt, dass jede Regel einen Test bricht.
-- **M0-11 Freigabematrix und Abschlussbericht in `CLAUDE.md` (Stufe 5)** · C (Arbeitsregeln) · M0-02 · Bestehende Anweisungen bleiben erhalten. Akzeptanz: Fatih hat Wortlaut freigegeben.
+- **M0-11 Freigabematrix und Abschlussbericht in `CLAUDE.md` (Stufe 5)** · C (Arbeitsregeln) · M0-02 · Bestehende Anweisungen bleiben erhalten; veraltete Angaben (z. B. „Next.js 15“, tatsächlich 16) werden korrigiert. Akzeptanz: Fatih hat Wortlaut freigegeben.
 - **M0-12 README und Betriebsdoku aktualisieren** · A · – · README beschreibt den realen Stand; Befehle stimmen. Akzeptanz: frischer Klon folgt dem README bis zur laufenden App.
-- **M0-13 Browser-Testgerüst** · B (neue Abhängigkeit, CI) · M0-02 · Grundablauf (Registrieren, Anmelden, Person anlegen, Kurs anlegen, Aufgabe abgeben) automatisiert im Browser. Akzeptanz: läuft lokal und in der CI; Bildschirmfotos als Beleg; falls in der Umgebung nicht möglich, ist das Ergebnis eine dokumentierte Ersatzlösung mit Fatihs Kenntnisnahme.
-- **M0-14 Ausführungssystem einrichten und erproben** · C · M0-03, M0-04, M0-07, M0-08, M0-10, M0-11 · Einstellungen, Sperren, Budgets, Zustandsdateien, Meilenstein-Zweig-Ablauf konfiguriert (Abschnitt 4). Akzeptanz: **ein beaufsichtigter Meilenstein** (M1) läuft durch, Fatih hat das Ergebnis gesehen und gibt längere unbeaufsichtigte Läufe frei.
+- **M0-13 Browser-Testgerüst** · C (neue CI-Schritte in `.github/`, neue Abhängigkeit) · M0-02 · Grundablauf (Registrieren, Anmelden, Person anlegen, Kurs anlegen, Aufgabe abgeben) automatisiert im Browser. Akzeptanz: läuft lokal und in der CI; Bildschirmfotos als Beleg; falls in der Umgebung nicht möglich, ist das Ergebnis eine dokumentierte Ersatzlösung mit Fatihs Kenntnisnahme.
+- **M0-14 Ausführungssystem einrichten** · C · M0-03, M0-04, M0-07, M0-08, M0-10, M0-11, M0-12, M0-13 · Einstellungen, Sperren, Budgets, Zustandsdateien, Meilenstein-Zweig-Ablauf konfiguriert (Abschnitt 4). Akzeptanz: Konfiguration getestet an einer Probeaufgabe ohne Auswirkung; Sperren nachweislich wirksam (ein verbotener Befehl wird abgelehnt). **Sonderregel:** M1 läuft als erster, **beaufsichtigter** Meilenstein; erst wenn Fatih dessen Ergebnis gesehen hat, gibt er längere unbeaufsichtigte Läufe frei.
 
-**M0-Ausgang (Bedingung für unbeaufsichtigte Läufe):** M0-03, M0-04, M0-06, M0-07, M0-08, M0-10, M0-11, M0-14 erledigt. Bis dahin arbeitet die Entwicklung höchstens an Aufgaben, die keinen Server-, Deploy- oder Rechtekontakt haben, und nur beaufsichtigt.
+**M0-Ausgang (Bedingung für Läufe überhaupt):** M0-03, M0-04, M0-06, M0-07, M0-08, M0-10, M0-11, M0-14 erledigt. **Bedingung für unbeaufsichtigte Läufe:** zusätzlich M1 beaufsichtigt abgeschlossen und von Fatih gesehen. Bis dahin arbeitet die Entwicklung höchstens an Aufgaben, die keinen Server-, Deploy- oder Rechtekontakt haben, und nur beaufsichtigt.
 
 ---
 
 ## M1 Schulverwaltung vollständig
 
 **Ziel:** Eine Schule kann Personen, Kurse, Zuordnungen und Termine im Alltag vollständig selbst verwalten, ohne Datenbankzugriff oder Betreiber.
-**Freigegebene Rechte- und Datenbankänderungen:** neue Rechte `person.manage` (Leitung: Rolle ändern, deaktivieren; Verwaltung: Stammdaten von Teilnehmenden ändern) und `session.reschedule` (Leitung, Verwaltung). **Migrationen:** nur additiv, soweit nötig (z. B. Absagegrund an Terminen, Ende-Datum bei Einschreibungen nutzbar).
+**Freigegebene Rechte- und Datenbankänderungen:** neue Rechte `person.manage` (Leitung: Rolle ändern, deaktivieren; Verwaltung: Stammdaten von Teilnehmenden ändern) und `session.reschedule` (Leitung, Verwaltung). **Migrationen:** nur additiv, soweit nötig: Absagegrund an Terminen; neue optionale Spalten an `organizations` für Kontakt, Zeitzone und Standard-UE-Länge.
 
 - **M1-01 Bestand im Browser prüfen** · A · M0-13 · Ablauf Registrieren → Bestätigen → Einladen → Personen → Kurs → Heute für alle vier Rollen durchgespielt. Akzeptanz: Fehlerliste als Aufgaben im Backlog; Bildschirmfotos.
-- **M1-02 Personen bearbeiten und deaktivieren** · B · M1-01 · Name, E-Mail, Rolle ändern (Leitung), deaktivieren und wieder aktivieren. Akzeptanz: deaktivierte Person kann sich nicht anmelden und erscheint in Listen als inaktiv; Rolle ändert Rechte sofort; Verlauf bleibt im Audit; Tests für Schul-übergreifenden Zugriff und Rechte-Matrix.
+- **M1-02 Personen bearbeiten und deaktivieren** · B · M1-01 · Name, E-Mail, Rolle ändern (nur Leitung, nur zwischen Teilnehmende, Lehrkraft, Verwaltung; **keine weitere Leitung**, wie in `ADDABLE_ROLES` bewusst festgelegt), deaktivieren und wieder aktivieren. Die letzte Leitung kann sich weder herabstufen noch deaktivieren. Akzeptanz: deaktivierte Person kann sich nicht anmelden und erscheint in Listen als inaktiv; Rolle ändert Rechte sofort; Verlauf bleibt im Audit; Tests für Schul-übergreifenden Zugriff und Rechte-Matrix.
 - **M1-03 Kurs bearbeiten und archivieren** · B · M1-01 · Name, Beschreibung, Niveau, Modus, Zeitraum ändern; Archivieren und Wiederherstellen. Akzeptanz: Änderung an Terminen mit bestätigter Anwesenheit wird verhindert oder begründet; archivierte Kurse sind schreibgeschützt.
 - **M1-04 Kursdetail** · A · M1-03 · Seite mit Teilnehmenden, Lehrkräften, Terminen, Verlauf. Akzeptanz: Verwaltung und Leitung sehen alles, Lehrkräfte nur eigene Kurse.
 - **M1-05 Einschreibungen und Lehrkräfte verwalten** · B · M1-03, M0-08(c) · Teilnehmende hinzufügen/entfernen, Eintritts- und Austrittsdatum, Kurswechsel, Lehrkraft wechseln. Akzeptanz: Daten wirken auf Aufgaben, Anwesenheit und Sichtbarkeit; keine Löschung von Nachweisen; Tests für Mandantentrennung.
 - **M1-06 Termine verwalten** · B · M1-03 · Termin verschieben, absagen (mit Grund), nachholen, einzeln hinzufügen. Akzeptanz: beendete/bestätigte Termine unveränderlich; Absage sichtbar für Betroffene; UE-Regeln (BAMF-Schalter) weiter geprüft.
 - **M1-07 Personenliste: Suche, Filter, Sortierung, Seiten** · A · M1-02 · Akzeptanz: 500 Personen bedienbar; Tests der Abfragen.
 - **M1-08 Import verbessern** · A · M1-02 · Vorschau, Fehlerliste mit Zeilen, Dublettenerkennung. Akzeptanz: fehlerhafte Datei ändert nichts; Fehlermeldungen in einfacher Sprache.
-- **M1-09 Schulprofil und Einstellungen** · A/B · M1-01 · Schulname, Kontakt, Zeitzone, Standard-UE-Länge; Logo erst nach M3-01. Akzeptanz: Änderungen protokolliert; nur Leitung.
+- **M1-09 Schulprofil und Einstellungen** · B (Migration) · M1-01 · Schulname, Kontakt, Zeitzone, Standard-UE-Länge; das Logo folgt in M3-07. Akzeptanz: Änderungen protokolliert; nur Leitung.
 - **M1-10 E-Mail-Texte und Zustellfehler** · A · M1-01 · Vorlagen für Einladung, Passwort, Absage; sichtbare Fehler bei Zustellproblemen. Akzeptanz: Texte geprüft; echter Versand bleibt Stopp-Punkt (M8-03).
 
 ---
@@ -77,12 +77,12 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 ## M2 Kursraum und Lernablauf
 
 **Ziel:** Teilnehmende und Lehrkräfte arbeiten im Alltag in einem Kursraum: sehen, was als Nächstes ansteht, bearbeiten Aufgaben, finden Informationen. Die Oberfläche bekommt ein einheitliches Designsystem als Grundlage.
-**Freigegebene Rechte- und Datenbankänderungen:** keine neuen Rechte (bestehende `course.participate`, `session.teach`, `assignment.*` genügen). **Migrationen:** additiv für Fristen und Benachrichtigungszustand an Aufgaben.
+**Freigegebene Rechte- und Datenbankänderungen:** keine neuen Rechte (bestehende `course.participate`, `session.teach`, `assignment.*` genügen). **Migrationen:** additiv: neue Tabelle für Benachrichtigungen, Erinnerungszustand an Aufgaben. (Fristen selbst gibt es schon.)
 
 - **M2-01 Designsystem-Grundlage** · A · M1-01 · Farben, Schrift, Abstände, Komponenten (Knöpfe, Formulare, Tabellen, Karten, Hinweise, Reiter) als gemeinsame Bausteine; keine Einzel-Stile mehr in neuen Seiten. Akzeptanz: Bildschirmfotos aller Seiten vor/nach; Kontrastprüfung bestanden.
 - **M2-02 App-Rahmen und Startseiten je Rolle** · A · M2-01 · Teilnehmende: „Mein Lernen“ (nächster Termin, fällige Aufgaben, Neues). Lehrkraft: „Heute und Offenes“. Verwaltung/Leitung: wie „Heute“. Akzeptanz: Browserablauf je Rolle.
 - **M2-03 Kursraum mit Reitern** · A · M2-02 · Reiter Übersicht, Aufgaben, Teilnehmende, später Material/Live; Reiter „Anwesenheit“ nur bei aktivem BAMF-Schalter. Akzeptanz: nicht zugeordnete Personen sehen den Raum nicht (Test).
-- **M2-04 Aufgaben ausbauen** · B · M2-03 · Fristen, Status je Person, Liste je Kurs, Aufgabe bearbeiten/zurückziehen, Hinweise für Lehrkraft. Akzeptanz: Abgaben und Rückmeldungen bleiben unveränderlich; Tests; Rechte unverändert.
+- **M2-04 Aufgaben ausbauen** · B · M2-03 · Frist nachträglich ändern, Status je Person, Liste je Kurs, Aufgabe bearbeiten/zurückziehen, Hinweise für Lehrkraft. Akzeptanz: Abgaben und Rückmeldungen bleiben unveränderlich; Tests; Rechte unverändert.
 - **M2-05 Lehrkraft-Arbeitsplatz** · A · M2-03 · offene Abgaben, Kursübersicht, Termin vorbereiten. Akzeptanz: Browserablauf mit Beispieldaten.
 - **M2-06 Benachrichtigungen in der App** · B · M2-04 · Hinweise für neue Aufgabe, Rückmeldung, abgesagten Termin. Akzeptanz: nur Betroffene sehen sie; als gelesen markierbar; Tests.
 - **M2-07 Handy-Tauglichkeit** · A · M2-02 · alle Teilnehmenden-Seiten bis 360 px bedienbar. Akzeptanz: Bildschirmfotos bei 360/768/1280 px.
@@ -101,7 +101,7 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 - **M3-04 Ansicht für Teilnehmende** · A · M3-02 · Reiter „Material“ im Kursraum, Suche. Akzeptanz: Entwurf und fremder Kurs nicht sichtbar (Test).
 - **M3-05 Dateiverarbeitung** · B · M3-01 · Größen-/Typprüfung, Namen bereinigen, Download nur mit Rechte-Prüfung, kein öffentlicher Link. Akzeptanz: Tests mit bösartigen Dateinamen/Typen.
 - **M3-06 Anhänge und Sprachaufnahmen in Abgaben** · B · M3-05, M2-04 · Frage 9. Akzeptanz: Aufnahme im Browser möglich; Version unveränderlich; Größenlimit.
-- **M3-07 Schul-Logo und Profilbilder** · A · M3-05, M1-09.
+- **M3-07 Schul-Logo und Profilbilder** · A · M3-05, M1-09 · Akzeptanz: Bild erscheint in Kopfzeile und auf Bescheinigungen; falsche Typen/Größen abgelehnt (Test).
 
 ---
 
@@ -112,12 +112,12 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 
 - **M4-01 Fachliche Spezifikation der Übungstypen** · A · Frage 2 · je Typ: Aufbau, Bewertungsregeln, Teilpunkte, Umgang mit Tippfehlern/Groß-Kleinschreibung/Umlauten, Beispiele. Akzeptanz: **Fatih prüft die Beispiele inhaltlich** (das ist der eine fachliche Prüfpunkt des Meilensteins).
 - **M4-02 Bewertungslogik ohne Datenbank** · A · M4-01 · reine Funktionen in `src/domain/`. Akzeptanz: Tabellentests je Typ inklusive Randfälle.
-- **M4-03 Datenmodell** · B · M4-02.
-- **M4-04 Editor** · A · M4-03, M2-01 · Vorschau, Duplizieren, Entwurf/Veröffentlichung.
+- **M4-03 Datenmodell** · B · M4-02 · Akzeptanz: Mandanten- und Rechtetests; Migration additiv, zweimal ausführbar auf frischer und gefüllter Datenbank.
+- **M4-04 Editor** · A · M4-03, M2-01 · Vorschau, Duplizieren, Entwurf/Veröffentlichung. Akzeptanz: Browserablauf: Übung je Typ anlegen, Vorschau, veröffentlichen.
 - **M4-05 Bearbeiten durch Teilnehmende** · A · M4-03 · Sofortergebnis, Wiederholen, Fortschritt. Akzeptanz: Antworten anderer nie sichtbar (Test); Versuche begrenzbar.
 - **M4-06 Ergebnisse für Lehrkräfte** · A · M4-05 · je Person und Übung, häufige Fehler. Akzeptanz: nur eigene Kurse.
-- **M4-07 Lernfortschritt im Kursraum** · A · M4-05, M2-03.
-- **M4-08 Übungen aus Vorlage/CSV importieren** · A · M4-04 · optional.
+- **M4-07 Lernfortschritt im Kursraum** · A · M4-05, M2-03 · Akzeptanz: Teilnehmende sehen nur eigenen Fortschritt, Lehrkräfte den ihrer Kurse (Test).
+- **M4-08 Übungen aus Vorlage/CSV importieren** · A · M4-04 · optional, nur wenn Zeit bleibt · Akzeptanz: fehlerhafte Datei ändert nichts; Fehlerliste mit Zeilen.
 
 ---
 
@@ -127,25 +127,25 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 **Freigegebene Rechte- und Datenbankänderungen:** keine neuen Rechte (Raum nutzt `session.teach` / `course.participate`). **Migrationen:** additiv, soweit für Raumzustand nötig.
 
 - **M5-01 Technische Prüfung LiveKit** · C · Frage 4, Frage 7 · Kosten, Hosting (Namecheap Shared kann keinen Medienserver betreiben), Standort EU, Teilnehmerzahl, Alternativen. Akzeptanz: Bericht mit Empfehlung; Fatih entscheidet.
-- **M5-02 Isolierter Prototyp** · A · M5-01 · nur mit Testserver und erfundenen Daten. Akzeptanz: zwei Browser verbinden sich, Ton und Bild laufen.
-- **M5-03 Raum im Kursraum** · B · M5-02, M2-03 · Zugangsberechtigung wird serverseitig vergeben (kurzlebig, nur für zugeordnete Personen, nur zum Termin). Akzeptanz: Fremde und nicht zugeordnete Personen bekommen keinen Zugang (Test).
+- **M5-02 Isolierter Prototyp** · C (Testserver, Schlüssel, Kosten) · M5-01 · nur mit Testserver und erfundenen Daten. Akzeptanz: zwei Browser verbinden sich, Ton und Bild laufen.
+- **M5-03 Raum im Kursraum** · B (Code; echte Schlüssel und Server: C, legt Fatih an) · M5-02, M2-03 · Zugangsberechtigung wird serverseitig vergeben (kurzlebig, nur für zugeordnete Personen, nur zum Termin). Akzeptanz: Fremde und nicht zugeordnete Personen bekommen keinen Zugang (Test); kein Schlüssel im Repository.
 - **M5-04 Einwahl wird ins Protokoll geschrieben** · B · M5-03 · nur bei aktivem BAMF-Schalter; Ereignisse nur vom System (A1, A2, A3). Akzeptanz: Protokoll-Tests, Dublettenschutz, Verbindungsabbruch.
 - **M5-05 Funktionen im Raum** · A · M5-03 · Bildschirm teilen, Chat, Hand heben, Lehrkraft kann stummschalten/entfernen. Akzeptanz: Browserablauf mit mehreren Personen.
-- **M5-06 Fehlerfälle und Qualität** · A · M5-03 · Verbindungsabbruch, schwache Leitung, Geräteauswahl, Lasttest mit Zielgröße aus Frage 6.
-- **M5-07 Datenschutz des Raums** · C · M5-03 · keine Aufnahme ohne Einwilligungskonzept; Datenfluss dokumentiert.
+- **M5-06 Fehlerfälle und Qualität** · A · M5-03 · Verbindungsabbruch, schwache Leitung, Geräteauswahl, Lasttest mit Zielgröße aus Frage 6. Akzeptanz: Wiedereinwahl nach Abbruch klappt; Lasttest mit der Zielzahl von Personen läuft ohne Abbrüche; Ergebnisse im Bericht.
+- **M5-07 Datenschutz des Raums** · C · M5-03 · keine Aufnahme ohne Einwilligungskonzept. Akzeptanz: Datenfluss-Skizze (welche Daten gehen an welchen Server) liegt vor; Fatih hat sie gesehen.
 
 ---
 
 ## M6 Kommunikation, Kalender, Bescheinigungen
 
 **Ziel:** Informationsfluss und Dokumente, die Schulen im Alltag brauchen.
-**Freigegebene Rechte- und Datenbankänderungen:** neues Recht `announcement.write` (Lehrkraft eigener Kurs, Verwaltung, Leitung); je nach Frage 3 `message.send`. **Migrationen:** additiv: Ankündigungen, Nachrichten, Bescheinigungen.
+**Freigegebene Rechte- und Datenbankänderungen:** neue Rechte `announcement.write` (Lehrkraft eigener Kurs, Verwaltung, Leitung) und `certificate.issue` (Verwaltung, Leitung). `message.send` ist **nicht** freigegeben, bis Frage 3 beantwortet ist. **Migrationen:** additiv: Ankündigungen, Bescheinigungen (Nachrichten erst nach Frage 3).
 
-- **M6-01 Ankündigungen je Kurs** · B · M2-06.
-- **M6-02 Nachrichten** · B · Frage 3 · Umfang je Antwort; Missbrauchsschutz (Melden, Sperren).
-- **M6-03 E-Mail-Benachrichtigungen** · B · M6-01, M8-03 · Einstellungen je Person; Abmelden möglich.
-- **M6-04 Kalender** · A · M1-06 · Ansicht und iCal-Export je Person.
-- **M6-05 Teilnahmebescheinigung (PDF)** · B · Frage 5 · Vorlage mit Schulname/Logo, Zeitraum, Stunden. Akzeptanz: nur aus bestätigten Daten; keine BAMF-Aussage.
+- **M6-01 Ankündigungen je Kurs** · B · M2-06 · Akzeptanz: nur zugeordnete Personen sehen sie (Test); Lehrkraft nur im eigenen Kurs.
+- **M6-02 Nachrichten** · B · Frage 3 · Umfang je Antwort; Missbrauchsschutz (Melden, Sperren). Akzeptanz: Nachrichten nur im erlaubten Kreis; Meldung erreicht die Leitung; Rechte-Test.
+- **M6-03 E-Mail-Benachrichtigungen** · B · M6-01 · Einstellungen je Person; Abmelden möglich. Akzeptanz: Test mit dem Datei-/Speicher-Versand; der echte Versand wird erst mit M8-03 eingeschaltet (C).
+- **M6-04 Kalender** · A · M1-06 · Ansicht und iCal-Export je Person. Akzeptanz: Export öffnet in einem Standard-Kalenderprogramm; Link nicht erratbar; abgesagte Termine entfallen.
+- **M6-05 Teilnahmebescheinigung (PDF)** · B · Frage 5, M1-05 · Vorlage mit Schulname/Logo, Zeitraum, Stunden. Datengrundlage: Einschreibung und Termine; Anwesenheitsstunden nur, wenn der BAMF-Baustein aktiv ist und bestätigte Anwesenheit vorliegt. Akzeptanz: PDF je Beispielperson geprüft; keine BAMF-Aussage; nur Berechtigte können sie erzeugen (Test).
 
 ---
 
@@ -154,15 +154,15 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 **Ziel:** Träger mit BAMF-Pflichten bekommen prüffähige Nachweise. Es werden keine Aussagen wie „BAMF-konform“ gemacht (siehe `docs/bamf-anforderungen.md`).
 **Freigegebene Rechte- und Datenbankänderungen:** keine neuen Rechte; **Migrationen** additiv (Status, Einwilligungen, Aufbewahrungsfristen).
 
-- **M7-01 Anwesenheits-Statusmodell nach Signaturlisten-Vorlage (A10)** · B · M1-06 · Online-Anwesenheit, entschuldigt, Kurswechsel; Export. Akzeptanz: Vorlage Stand 02.11.2026 abgebildet; Abgleich mit Primärquelle.
-- **M7-02 Export (Signaturliste, Einwahlprotokoll)** · B · M7-01.
-- **M7-03 IK und BSK getrennt (A11)** · B · M7-01.
-- **M7-04 UE-Grenzen gegen aktuelle Fassung prüfen (A5)** · A · – · Quelle lesen, Regel belegen oder korrigieren.
-- **M7-05 Einwilligungen und Einführungsveranstaltung (A6, A7)** · B · Rechtsprüfung.
-- **M7-06 Aufbewahrung und Löschkonzept (A4)** · C · Datenschutz-Konzept durch Fachperson.
+- **M7-01 Anwesenheits-Statusmodell nach Signaturlisten-Vorlage (A10)** · B · M1-06 · Online-Anwesenheit, entschuldigt, Kurswechsel. Akzeptanz: jeder Fall der Vorlage Stand 02.11.2026 ist abbildbar. Die Primärquelle (Leitlinien) war bisher nicht lesbar (`bamf-anforderungen.md`, offene Frage 1): Ist sie es weiterhin nicht, gilt die Umsetzung als Annahme und wird so gekennzeichnet; Bestätigung durch einen Träger ist Voraussetzung für jede Aussage nach außen.
+- **M7-02 Export (Signaturliste, Einwahlprotokoll)** · B · M7-01 · Akzeptanz: Export enthält nur bestätigte Daten, kennzeichnet unbestätigte, wird im Protokoll vermerkt; Beispiel-Datei geprüft.
+- **M7-03 IK und BSK getrennt (A11)** · B · M7-01 · Akzeptanz: Kurs hat Typ IK/BSK; Regeln und Exporte je Typ getrennt, getestet.
+- **M7-04 UE-Grenzen gegen aktuelle Fassung prüfen (A5)** · B (ändert eine Anwesenheitsregel) · – · Quelle lesen, Regel belegen oder korrigieren. Akzeptanz: Quelle zitiert (kurz, mit Fundstelle) oder als „nicht prüfbar“ markiert; Tests passen zur Regel.
+- **M7-05 Einwilligungen und Einführungsveranstaltung (A6, A7)** · C (Rechtstext) · Rechtsprüfung · Akzeptanz: Texte von einer fachkundigen Person freigegeben; Einwilligung je Person speicher- und nachweisbar.
+- **M7-06 Aufbewahrung und Löschkonzept (A4)** · C · Datenschutz-Konzept durch Fachperson · Akzeptanz: Konzept liegt vor und ist freigegeben; Umsetzung erst danach.
 - **M7-07 Nachweispaket für die Online-Zulassung (A9)** · A · M7-02, M5-04.
 - **M7-08 Anfrage an das BAMF (BerD, InGe)** · C · formulieren ja, versenden nie ohne Freigabe.
-- **M7-09 Aussagen-Prüfung** · A · Texte, Startseite, Werbung gegen die Regel „keine Konformitätsbehauptung“ prüfen.
+- **M7-09 Aussagen-Prüfung** · A · Texte, Startseite, Werbung gegen die Regel „keine Konformitätsbehauptung“ prüfen. Akzeptanz: Suchlauf über alle Texte; Fundliste abgearbeitet.
 
 ---
 
@@ -171,11 +171,11 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 **Ziel:** Eine Pilotschule kann mit echten Personen arbeiten. Dieser Meilenstein enthält die meisten Stopp-Punkte.
 **Freigegebene Rechte- und Datenbankänderungen:** Migration der Betriebsdatenbank ist ein eigener, beaufsichtigter Schritt (C).
 
-- **M8-01 Datenbank in der EU (PostgreSQL)** · C · M0-07, Frage 7 · Umzug von PGlite, Start-Prüfung der Datenbankrolle, Sicherung automatisiert. Akzeptanz: Umzug auf Kopie erprobt, Rückweg beschrieben.
-- **M8-02 Überwachung und Alarme** · C · M8-01 · Fehlerprotokoll ohne Personendaten, Verfügbarkeitsprüfung, Benachrichtigung.
-- **M8-03 Echter E-Mail-Versand** · C · Frage 7 · Anbieter in der EU, Absenderdomain (SPF/DKIM/DMARC). Zugangsdaten legt Fatih selbst an.
-- **M8-04 Datenschutz und Recht** · C · Fachperson · Impressum, Datenschutzerklärung, Nutzungsbedingungen, Auftragsverarbeitungsvertrag, Verzeichnis der Verarbeitungen; Platzhalter ersetzt.
-- **M8-05 DSGVO-Funktionen** · B · M8-04 · Auskunft/Export einer Person, Löschung/Anonymisierung ohne Bruch der unveränderlichen Nachweise (Konzept zuerst).
+- **M8-01 Datenbank in der EU (PostgreSQL)** · C · M0-07, Frage 7 · Umzug von PGlite, Start-Prüfung der Datenbankrolle, Sicherung automatisiert. Akzeptanz: Umzug auf Kopie erprobt, Datenvergleich vorher/nachher, Rückweg beschrieben, Wiederherstellung getestet.
+- **M8-02 Überwachung und Alarme** · C · M8-01 · Fehlerprotokoll ohne Personendaten, Verfügbarkeitsprüfung, Benachrichtigung. Akzeptanz: absichtlicher Testfehler löst Alarm aus; Protokolle enthalten keine Passwörter oder Personendaten (Stichprobe).
+- **M8-03 Echter E-Mail-Versand** · C · Frage 7 · Anbieter in der EU, Absenderdomain (SPF/DKIM/DMARC). Zugangsdaten legt Fatih selbst an. Akzeptanz: Testmail kommt an, nicht im Spam; SPF/DKIM/DMARC bestehen die Prüfung.
+- **M8-04 Datenschutz und Recht** · C · Fachperson · Impressum, Datenschutzerklärung, Nutzungsbedingungen, Auftragsverarbeitungsvertrag, Verzeichnis der Verarbeitungen; Platzhalter ersetzt. Akzeptanz: schriftliche Freigabe der Fachperson liegt vor; Texte im Produkt entsprechen ihr.
+- **M8-05 DSGVO-Funktionen** · C (berührt die Unveränderlichkeit der Nachweise) · M8-04 · Auskunft/Export einer Person, Löschung/Anonymisierung ohne Bruch der unveränderlichen Nachweise (Konzept zuerst).
 - **M8-06 Designpolitur und Barrierefreiheit** · A · M2–M4 · Prüfung nach WCAG 2.2 AA mit Werkzeug und von Hand; Tastatur, Screenreader, Kontrast. Akzeptanz: Bericht mit Behebungen.
 - **M8-07 Last- und Sicherheitstest** · B · M8-01 · Zielgröße aus Frage 6; Sicherheitsreview der Gesamtanwendung durch frischen Agenten und Checkliste; Abhängigkeitsprüfung grün.
 - **M8-08 Pilot-Einführung** · C · Frage 6 · Anleitung, Schulung, Supportweg, Rückfallplan, Freigabe für echte Personendaten **nur durch Fatih**.
@@ -188,9 +188,9 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 **Freigegebene Rechte- und Datenbankänderungen:** keine; neue Rolle „Betreiber“ ist eine Änderung der Sicherheitsarchitektur (C).
 
 - **M9-01 Betreiberbereich** · C · M8-08 · Schulen freischalten/sperren/verlängern per Oberfläche; getrennte Anmeldung, zusätzliche Absicherung.
-- **M9-02 Preismodell festlegen** · C · Frage 1.
+- **M9-02 Preismodell festlegen** · C · Frage 1 · Akzeptanz: Preismodell schriftlich entschieden.
 - **M9-03 Abrechnung** · C · M9-02 · Anbieter, Rechnungen, Steuer; Zugangsdaten durch Fatih.
-- **M9-04 Kündigung und Datenexport für Schulen** · B · M9-03.
+- **M9-04 Kündigung und Datenexport für Schulen** · B · M9-03 · Akzeptanz: Schule kann kündigen und ihre Daten exportieren; Export enthält nur eigene Daten (Test).
 
 ---
 
@@ -220,4 +220,5 @@ Die Einrichtung folgt nach der Freigabe dieser Dokumente und wird in M0-14 an ei
 - **Budgets.** Je Aufgabe und je Lauf wird eine Obergrenze für Zeit und Aufwand gesetzt (Werte bei der Einrichtung festlegen). Überschreitung beendet den Lauf mit Bericht.
 - **Eskalation.** Nur echte Produktfragen, Stopp-Punkte und Blocker, die innerhalb der Grenzen nicht lösbar sind. Meldung in einfacher Sprache mit Empfehlung und Standard-Annahme.
 - **Meilenstein-Abschluss.** Gesamtprüfung auf dem Meilenstein-Zweig (alle Prüfungen, Browserdurchgang), Sicherheitsreview für alle B-Aufgaben, ein Pull Request nach `main`. Danach wartet der Lauf auf Fatihs Merge und fährt mit dem nächsten freigegebenen Meilenstein fort.
+- **Vor M0-04:** Pull Requests mit Änderungen an `.github/` oder `deploy/` werden nicht ohne Fatihs Freigabe zusammengeführt; Meilenstein-Läufe sind nur beaufsichtigt.
 - **Was technisch erzwungen wird.** Lokale Sperrregeln in den Claude-Code-Einstellungen (kein Merge auf `main`, kein Push auf `main`, keine Änderungen an geschützten Pfaden), CI-Prüfungen und, sobald M0-03 erledigt ist, GitHub-Zweigschutz. **Bis dahin ist „kein Merge auf `main`“ eine Absprache plus lokale Sperre, nicht ein Schutz auf GitHub-Seite.**

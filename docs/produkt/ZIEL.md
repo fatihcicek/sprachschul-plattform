@@ -53,6 +53,7 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 | Schule registriert sich selbst, E-Mail-Bestätigung, 7 Tage Test, danach nur lesend | UMGESETZT | `src/server/registration.ts`, `tests/registration.test.ts`, `tests/access.test.ts` |
 | Anmeldung mit Passwort, Einladungslink zum Passwort-Setzen, „Passwort vergessen“ | UMGESETZT | `auth.ts`, `password-reset.ts`, Tests; Begrenzung der Versuche (`login_attempts`) |
 | Echter E-Mail-Versand (SMTP) | UNGEPRÜFT | Code und Konfiguration vorhanden (`mailer.ts`), im Betrieb nie mit einem Mailserver geprüft; Testumgebung nutzt Datei-/Seitenanzeige |
+| Schule per Skript anlegen (`npm run school:create`), Testzeit-Hinweis in der App | UMGESETZT | `scripts/create-school.ts`, `trial-banner.tsx` |
 | Demo-Anmeldung (Auswahl erfundener Personen) | UMGESETZT, nur Test | gehört nicht in den Betrieb mit echten Daten (`DEMO_LOGIN`) |
 | Schulprofil (Name, Logo, Kontakt, Sprache) | FEHLT | nur ein BAMF-Schalter in den Einstellungen |
 | Betreiberbereich zum Freischalten, Sperren, Verlängern | TEILWEISE | nur per Kommandozeile |
@@ -90,8 +91,9 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 | Funktion | Status | Beleg / Anmerkung |
 | --- | --- | --- |
 | Aufgabe stellen, Text schreiben (Entwurf), abgeben, Rückmeldung, Überarbeitung; jede Version unveränderlich | UMGESETZT | `assignments.ts`, Tests |
+| Fristen (optional) mit Anzeige „verspätet“ | UMGESETZT | `assignments.due_at`, `domain/submission.ts`, Eingabe in `lehrkraft/page.tsx` |
 | Anhänge, Audio-/Sprachaufnahmen, Bilder in Abgaben | FEHLT | nur Text |
-| Fristen, Erinnerungen, Benotung/Punkte, Aufgaben an einzelne Personen | FEHLT | |
+| Erinnerungen, Benotung/Punkte, Aufgaben an einzelne Personen | FEHLT | |
 | Aufgabe bearbeiten oder zurückziehen | FEHLT | |
 | Offene Befunde: Fehlerabbildung in `createAssignmentAction`/`feedbackAction`; Einschreibedaten (`startsOn/endsOn`) werden bei Aufgaben ignoriert | OFFEN | siehe M0 |
 
@@ -105,7 +107,7 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 
 | Funktion | Status | Beleg / Anmerkung |
 | --- | --- | --- |
-| Eigener Klassenraum mit Video, Audio, Bildschirm teilen, Chat | FEHLT | Entscheidung für LiveKit (kostenlos, Open Source); technische Prüfung von Kosten und Hosting steht aus, Vorlage ist der Videoraum der GCA-App |
+| Eigener Klassenraum mit Video, Audio, Bildschirm teilen, Chat | FEHLT | Entscheidung für LiveKit (Open Source; kostenlos ist nur die Software, ein Server zum Selbsthosting oder ein Cloud-Tarif kostet Geld); technische Prüfung von Kosten und Hosting steht aus, Vorlage ist der Videoraum der GCA-App |
 | Einwahl wird automatisch ins Protokoll geschrieben | FEHLT | heute nur Beispieldaten; Protokoll selbst ist umgesetzt (F8) |
 
 ### F8 Anwesenheit, Protokoll, Klassenbuch (BAMF-Baustein, optional je Schule)
@@ -135,11 +137,11 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 
 | Funktion | Status | Beleg / Anmerkung |
 | --- | --- | --- |
-| Mandantentrennung (22 Tabellen mit Zeilensicherheit, FORCE), Tests | UMGESETZT | vollständig gegen PostgreSQL getestet; gegen PGlite nur 4 Tests |
+| Mandantentrennung (22 Tabellen mit Zeilensicherheit, FORCE), Tests | UMGESETZT | `drizzle/*.sql`; vollständig gegen PostgreSQL getestet, gegen PGlite nur 4 Tests; ein Test, der jede Tabelle automatisch prüft, kommt in M0-10 |
 | Rechtetabelle an einer Stelle, Prüfung in jeder Serveraktion | UMGESETZT | `permissions.ts`; offene Befunde siehe M0 |
 | CI: Typprüfung, Tests, Paketbau | UMGESETZT | `deploy.yml` |
 | CI: Geheimnissuche, Paketprüfung, Migrationsprüfung | OFFEN | Pull Request #23, nicht gemergt |
-| Automatische Auslieferung auf `schule.gold-code-academy.com` | UMGESETZT, **Risiken offen** | Daten-Persistenz, Sicherungen, Zugangsdaten, Berechtigung der Pipeline ungeprüft (Server-Prüfung steht aus) |
+| Automatische Auslieferung auf `schule.gold-code-academy.com` | UMGESETZT, **Risiken offen** | **Belegt:** `deploy.yml` läuft auch bei Pull Requests mit Schreibrecht auf das Repository (Deploy selbst nur nach Push auf `main`). **Ungeprüft** (Server-Prüfung steht aus): Daten-Persistenz, Sicherungen, Zugangsdaten auf dem Server |
 | Datenbank im Betrieb (PGlite auf Namecheap) | UNGEPRÜFT | nur ein Prozess zulässig; Verhalten bei Neustart/Deploy ungeprüft |
 | Sicherung und Wiederherstellung | FEHLT | |
 | Überwachung, Fehlerprotokolle, Alarm | FEHLT | |
@@ -150,11 +152,10 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 
 ## 6. Was „pilotreif“ und „produktionsreif“ heißt
 
-**Pilotreif** (kontrollierter Test mit einer Schule und echten Personen, nur nach ausdrücklicher Freigabe):
-- Alle Punkte aus M0 (Betriebs- und Sicherheitsfundament) erledigt, inklusive getesteter Sicherung/Wiederherstellung und echter Datenbank in der EU.
+**Pilotreif** (kontrollierter Test mit einer Schule und echten Personen, nur nach ausdrücklicher Freigabe) heißt: M0, M1, M2, M3 und die Pilot-Aufgaben aus M8 sind erledigt, also:
+- Betriebs- und Sicherheitsfundament (M0) erledigt, inklusive getesteter Sicherung/Wiederherstellung.
 - Verwaltung, Kursraum, Material und Aufgaben (M1, M2, M3) für den Alltag einer Schule vollständig.
-- Rechtsgültige Texte (Impressum, Datenschutz, Auftragsverarbeitung) von einer fachkundigen Person geprüft.
-- E-Mail-Versand über einen echten Dienst in der EU.
+- Echte Datenbank in der EU, Überwachung, E-Mail-Versand über einen echten Dienst in der EU, rechtsgültige Texte (Impressum, Datenschutz, Auftragsverarbeitung) von einer fachkundigen Person geprüft, Datenschutzfunktionen, Barrierefreiheitsprüfung (alles M8).
 - Einführung der Pilotschule ist geplant (Wer, wie viele Personen, wann: Frage 6).
 
 **Produktionsreif** (mehrere Schulen, Bezahlung):
@@ -174,7 +175,7 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 
 ## 8. Offene Produktfragen
 
-Die Fragen stehen in der Nachricht an Fatih und werden hier eingetragen, sobald sie beantwortet sind. Jede Frage nennt die Annahme, mit der gearbeitet wird, falls nichts anderes gesagt wird.
+Antworten werden hier eingetragen. Jede Frage nennt die Annahme, mit der gearbeitet wird, falls nichts anderes gesagt wird.
 
 | Nr. | Frage | Arbeitsannahme | Blockiert |
 | --- | --- | --- | --- |
@@ -183,8 +184,8 @@ Die Fragen stehen in der Nachricht an Fatih und werden hier eingetragen, sobald 
 | 3 | Sollen Teilnehmende untereinander schreiben können, oder nur mit der Lehrkraft? | nur Lehrkraft ↔ Teilnehmende und Ankündigungen je Kurs | M6 |
 | 4 | Was muss der Live-Raum zuerst können (Video, Ton, Bildschirm, Chat, Gruppenräume, Aufnahme)? | Video, Ton, Bildschirm teilen, Chat; keine Aufnahme (Einwilligungen nötig) | M5 |
 | 5 | Welche Dokumente brauchen Schulen (Teilnahmebescheinigung, Zertifikat, Lernstandsbericht)? | Teilnahmebescheinigung als PDF | M6 |
-| 6 | Pilot: Welche Schule, welche Kurse, wie viele Personen, ab wann, BAMF-Kurse ja/nein? | Sprachen Plus e.V., wenige Kurse, zunächst ohne BAMF-Funktionen | M8 |
-| 7 | Welches Monatsbudget gilt für Hosting (Datenbank in der EU, Dateiablage, Videoserver, E-Mail)? | Nur Kosten, die du vorher freigibst; bis dahin Testumgebung wie heute | M0, M3, M5, M8 |
+| 6 | Pilot: Welche Schule, welche Kurse, wie viele Personen, ab wann, BAMF-Kurse ja/nein? | Sprachen Plus e.V., wenige Kurse, zunächst ohne BAMF-Funktionen | M5 (Lasttest), M8 |
+| 7 | Welches Monatsbudget gilt für Hosting (Datenbank in der EU, Dateiablage, Videoserver, E-Mail)? | Nur Kosten, die du vorher freigibst; bis dahin Testumgebung wie heute | M0, M3, M5, M6, M8 |
 | 8 | Welche Oberflächensprachen sind nötig (nur Deutsch, oder auch Englisch/Arabisch/Türkisch für Teilnehmende)? | Deutsch; Texte so bauen, dass weitere Sprachen später möglich sind | M2 |
 | 9 | Sollen Teilnehmende Dateien und Sprachaufnahmen abgeben (Sprechaufgaben)? | ja, Audio und Bilder in Aufgaben | M3 |
 
@@ -196,5 +197,15 @@ Die Fragen stehen in der Nachricht an Fatih und werden hier eingetragen, sobald 
 4. Gibt es irgendeine Sicherung, und lässt sie sich wiederherstellen?
 5. Sind die zufälligen Next.js-Schlüssel im öffentlichen Zweig `deploy` sicherheitsrelevant für uns (Server-Aktionen)? Plan: privat stellen und neu bauen.
 6. Wo steht der Hoster, gibt es einen Auftragsverarbeitungsvertrag?
-7. Funktioniert der E-Mail-Versand mit einem echten Server?
+7. Funktioniert der E-Mail-Versand mit einem echten Server? (Auf der Testumgebung zeigt `REGISTRATION_SHOW_LINK` den Bestätigungslink auf der Seite an; das ist nur dort zulässig.)
 8. Welche Rechte hat die Auslieferungs-Pipeline (`deploy.yml` läuft bei Pull Requests mit Schreibrecht)?
+
+## 10. Begriffe
+
+- **Zeilensicherheit (RLS):** Die Datenbank selbst erlaubt jeder Schule nur ihre eigenen Zeilen, auch wenn der Programmcode einen Fehler hätte.
+- **PGlite:** eine kleine eingebettete Datenbank, die auf der Testumgebung läuft, weil das Hosting-Paket keinen Datenbankserver hat. Sie verträgt nur einen Prozess. Für den echten Betrieb ist PostgreSQL vorgesehen.
+- **Migration:** eine versionierte Änderung am Aufbau der Datenbank. *Additiv* heißt: nur Neues kommt hinzu, nichts wird verändert oder gelöscht.
+- **CI:** die automatische Prüfung auf GitHub bei jeder Änderung (Typprüfung, Tests, Paketbau, später Geheimnissuche).
+- **Zweigschutz:** eine GitHub-Einstellung, die Direktänderungen an `main` technisch verbietet. Derzeit nicht aktiv.
+- **Deploy:** das Ausliefern eines Stands auf die Testumgebung. Passiert automatisch nach einem Merge auf `main`.
+- **UE:** Unterrichtseinheit (45 Minuten).
