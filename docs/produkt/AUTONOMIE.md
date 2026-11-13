@@ -99,6 +99,19 @@ Die Sitzung arbeitet mit Fatihs eigenem GitHub-Konto (`gh api user` liefert `fat
 - **Technisch durchsetzbar wird die Trennung erst mit einer eigenen Identität für den Agenten:** ein zweites GitHub-Konto (oder eine GitHub-App) mit Schreibrecht nur auf dieses Repository, ohne Admin, ohne Umgehungsrecht, mit eigenem eng begrenztem Token. Pull Requests des Agenten gibt dann Fatihs Konto frei; Rulesets binden den Agenten wirklich. Das Anlegen ist eine Zugangsdaten-Aktion und braucht Fatihs ausdrückliche Freigabe (§11, Schritt 3a).
 - Bis dahin ist jede Grenze für mich eine Selbstverpflichtung, die Fatih beim Zuschauen kontrolliert. Das reicht für betreute Ausführung, nicht für unbeaufsichtigte.
 
+### 7b. Empfohlenes Identitätsmodell (nichts davon ist eingerichtet)
+
+Geprüft am 13.11.2026: Das Repository ist öffentlich, Rulesets gelten dort auch im kostenlosen Tarif; für private Repositories verlangt GitHub laut Dokumentation Pro, Team oder Enterprise. Ob dein Tarif das abdeckt, zeigt `Settings > Billing` (die API liefert hier keinen Tarif). Ein Ruleset und Branch-Schutz existieren heute nicht (Abfrage: keine Rulesets, `main` ungeschützt). Die Produktivgeheimnisse liegen nicht in GitHub: `deploy.yml` nutzt nur `GITHUB_TOKEN`.
+
+| Option | Vorteil | Nachteil |
+| --- | --- | --- |
+| **GitHub App** nur für dieses Repository (Rechte: Inhalte, Pull Requests, Issues lesen/schreiben; keine Administration, keine Workflows, keine Secrets) | kein zweites Konto, kurzlebige Token, schmale Rechte, erscheint als Bot, kann nie Administrator sein | App-Schlüssel muss sicher liegen; Token-Erzeugung braucht ein kleines Skript; ob die Cloud-Sitzung ein eigenes Token verwenden kann, ist ungeprüft |
+| **Zweites GitHub-Konto** als Mitarbeiter mit Schreibrecht | einfach zu verstehen | persönliche Repositories geben Mitarbeitern immer Lesen und Schreiben; feingranulare Token reichen für fremde persönliche Repositories laut Community-Berichten nicht (ungeprüft), also ein breites klassisches Token; ein weiteres Konto zu pflegen |
+| GitHub-Aktion `claude-code-action` | Bot-Identität, Rechte im Workflow festgelegt | braucht Anthropic-Zugang als Secret (Zugangsdaten und Kosten), eigene Workflows; Pull Requests mit `GITHUB_TOKEN` starten keine CI (laut Dokumentation) |
+
+**Empfehlung:** GitHub App. Kern der Durchsetzung ist nicht die Identität allein, sondern drei Dinge zusammen: (1) Ruleset auf `main` (Pull Request, grüne Prüfungen, mindestens eine Freigabe, **keine** Umgehung außer Repository-Administrator nur für Pull Requests, damit du eigene Pull Requests mergen kannst), (2) `CODEOWNERS` mit dir als Eigentümer aller geschützten Pfade und die Regel „Review durch Code-Eigentümer“ auf `main` und `meilenstein/*`, (3) die App ohne Workflow-Recht, ohne Administration, ohne Umgehungsrecht. Dann kann die App Zweige und Pull Requests anlegen und in Meilenstein-Zweige mergen, solange kein geschützter Pfad betroffen ist, aber nicht in `main` mergen, keine Workflows und keine Rulesets ändern, keine Secrets lesen. Gegenprobe nach der Einrichtung (vorher nichts annehmen): App-Token versucht Push auf `main`, Änderung in `.github/` und Merge ohne Freigabe; alle drei müssen scheitern.
+Die Einrichtung (Konto oder App, Schlüssel, Installation, Ruleset) ist eine Zugangsdaten- und Sicherheitsaktion und braucht deine ausdrückliche Freigabe.
+
 ## 8. Fehlerfälle
 
 | Fall | Verhalten |
@@ -153,30 +166,46 @@ Unbeaufsichtigte Entwicklung ohne Schritte 2 bis 5 (einschließlich 3a und 3b) w
 | `scripts/preflight.sh` | STOP, Freigabe, sauberer Baum, grüne CI, Schutz aktiv, Budgets | C | Probeläufe mit jeder Fehlbedingung |
 | `scripts/test-integrity.sh` | entfernte/übersprungene/gelockerte Tests melden | C | Probe-Diffs |
 | Skill `run-task` (Arbeitsanweisung für einen Lauf: Schritte aus §4) und Reviewer-Anweisung | Ablauf und Prüfauftrag | B | Probelauf |
-| `scripts/check-protected-paths.sh` als Pflichtprüfung in der CI, ausgeführt aus dem Stand von `main` (nicht aus dem Stand des Pull Requests; Machbarkeit wird in M0-14 belegt): lehnt Diffs auf geschützte Pfade ab, außer bei Pull Requests, die Fatih selbst eröffnet hat | C | Probe-Diffs für jeden geschützten Pfad |
+| `scripts/coordinator.ts` (Unterbefehle `preflight`, `next`, `check-diff`) mit Tests; Entwurf und grüne Tests liegen unter `docs/produkt/entwurf/coordinator/` | Aufgabenwahl, Vorprüfung, Selbstkontrolle des Diffs (geschützte Pfade, übersprungene Tests, entfernte Erwartungen) | C | `tests/coordinator.test.ts` |
+| `.github/CODEOWNERS` für alle geschützten Pfade plus Ruleset-Regel „Review durch Code-Eigentümer“ auf `main` und `meilenstein/*` | **technische** Durchsetzung geschützter Pfade am Merge; wirkt gegen den Agenten erst mit eigenem Agentenkonto (§7a), gegen Fatihs Konto nur, solange die Regel für Admins ohne Umgehung gilt | C | Probe-Pull-Request auf einen geschützten Pfad wird blockiert |
 | Tracking-Issue je Meilenstein | Übersicht für Fatih | A | sichtbar in GitHub |
 
 Bereits geprüft: Das Aufgabenformat in `BACKLOG.md` (`- **ID Titel** · Klasse · Abhängigkeiten · Text`) lässt sich nach Vereinheitlichung (ein Strich-Zeichen „—“, nur Aufgaben-IDs, „Frage N“ oder ein Freitext-Tag im Abhängigkeitsfeld) maschinell lesen; ein Parser-Test, der Abweichungen meldet, gehört zur Abnahme von M0-14. Am 13.11.2026 wurden alle Aufgaben bis auf drei fehlerhaft formatierte (M7-07, M7-08, M7-09; inzwischen korrigiert) erkannt; ein Test dafür gehört zu `next-task`.
 
-### 12.2 Testplan: was die erste betreute Ausführung beweisen muss
+### 12.2 Abnahmekriterien der Demonstration (M1-07, dann M1-08)
 
-| Nr. | Prüfung | Nachweis |
-| --- | --- | --- |
-| T1 | Aufgabenwahl: wählt mit der in der Freigabe genannten Startreihenfolge M1-07; Gegenproben: ohne Startreihenfolge wäre M1-01 die erste; M1-02 wird nicht gewählt (Vorgänger M1-01 nicht fertig); keine Aufgabe aus M0 oder Klasse C | Ausgabe von `next-task`, Probe mit Gegenbeispielen |
-| T2 | Umsetzung auf eigenem Zweig `task/m1-07-…`, Entwurfs-PR als Anspruch | Zweig, PR |
-| T3 | `tsc`, `vitest`, `build` und Browserdurchgang | echte Ausgaben, Bildschirmfotos |
-| T4 | Unabhängiger Review durch frischen Agenten, mindestens eine absichtlich eingebaute Probe-Schwäche wird gefunden (z. B. fehlender Schultrennungs-Test) | Reviewer-Bericht |
-| T5 | Korrektur im Budget (höchstens 3/2 Runden); Überschreitung führt zu „blockiert“ | Zähler in STATUS |
-| T6 | PR mit Belegen, Stand in `STATUS.md`, Sitzung endet | PR-Text, STATUS |
-| T7 | Neue, frische Sitzung: erkennt M1-07 als „fertig“ (im Meilenstein-Zweig), erzeugt keinen zweiten Zweig, wählt nach der Startreihenfolge M1-08 | Ausgabe von `next-task`, Git-Zustand unverändert |
-| T8 | Gegenprobe: gesetzte `STOP`-Datei verhindert den Start; der Pfadprüfer (`check-protected-paths`, §12.1) lehnt einen Probe-Diff in `.github/` und in `FREIGABEN.md` ab | Probeläufe |
+**Vorabprüfung von M1-07 (13.11.2026, nur Lesen, am Code):** Die Aufgabe braucht keine Migration (nur `listAccounts` lesen, `src/server/auth.ts:205`), keine Rechteänderung (die Prüfung `account.invite` bleibt in `listAccounts` und unverändert), keine Änderung an Schema, Anmeldung, `scripts/`, `.github/`, `deploy/` oder Paketdateien und keine echten Daten (500 erfundene Personen entstehen im Test). Erwartete Dateien: `src/domain/people-list.ts` (neu, ohne Datenbank), `src/app/verwaltung/personen/page.tsx` (Adressparameter lesen), ggf. Stil in `src/app/globals.css`, `tests/people-list.test.ts`. Jede andere Datei im Diff ist ein Abbruchgrund.
+
+**Fachlich (messbar):**
+- F1 Suche (`q`): Teilstring in Vorname, Nachname, E-Mail; ohne Groß-/Kleinschreibung und ohne Umlaut-Unterschied („muller“ findet „Müller“); `q` auf 100 Zeichen begrenzt.
+- F2 Filter: Rolle (mehrere) und Zugangsstatus (kein Zugang, eingeladen, hat Zugang), kombiniert mit UND.
+- F3 Sortierung: Nachname (Standard), Vorname, E-Mail, Rolle, jeweils auf- und absteigend.
+- F4 Seiten: 50 je Seite; „x–y von n“; ungültige Seitenzahl führt zur nächsten gültigen; Zustand steht in der Adresse und bleibt beim Neuladen.
+- F5 Unbekannte oder fehlerhafte Parameter werden ignoriert, nie als Fehler gezeigt; keine Seite bricht.
+- F6 Leerzustand „Keine Treffer“ mit Link „Filter zurücksetzen“.
+- F7 500 erfundene Personen: Seite lädt, Seitenzeit lokal gemessen und im Pull Request genannt, Bedienung per Tastatur, bei 360 px Breite kein seitliches Scrollen (Bildschirmfotos).
+- F8 Rechte unverändert: die bestehenden Tests zu `listAccounts` (Lehrkraft abgelehnt, Schule B sieht Schule A nicht) laufen unverändert grün; ein neuer Test belegt, dass die Filterfunktion nur die übergebenen Personen kennt.
+- F9 Prüfungen: `tsc`, `vitest` (alle bisherigen und neuen Tests), `build` grün; Mutationsprobe: wird ein Filter entfernt, bricht mindestens ein Test.
+- F10 `coordinator check-diff` ohne Befund; Diff enthält nur die erwarteten Dateien.
+
+**Ablauf (messbar, jeweils mit Beleg im Pull Request):**
+- P1 Sitzung A beginnt mit `coordinator preflight` (alle OK) und `coordinator next`; die Ausgabe nennt „NEU M1-07“. Bei fehlender Freigabe oder vorhandener STOP-Datei startet sie nicht.
+- P2 Sitzung A legt Zweig `task/m1-07-…` und Entwurfs-Pull-Request an, bevor sie Code ändert.
+- P3 Ein frischer Reviewer-Agent (nicht Sitzung A) liefert Urteil mit Datei- und Zeilenbezug und führt die Tests selbst aus; Befunde sind behoben oder begründet abgelehnt; Zähler in `STATUS.md` (höchstens 3 CI-Runden, 2 Review-Runden).
+- P4 Sitzung A schreibt `STATUS.md` („in Prüfung“, Zweig, Pull Request, Beleg), pusht und endet; danach läuft kein Prozess der Sitzung, der Arbeitsbaum ist sauber.
+- P5 Fatih prüft und führt den Task-Pull-Request in `meilenstein/m1-verwaltung` zusammen (in der Demonstration nicht der Agent).
+- P6 **Sitzung B ist eine neue Sitzung ohne den Gesprächsverlauf von A**, gestartet nur mit der Anweisung `run-task`. Sie meldet M1-07 als „fertig“, legt **keinen** zweiten Zweig an (Zweigliste vor und nach dem Start identisch), und `coordinator next` nennt „NEU M1-08“. Die Ausgabe nennt auf Nachfrage, warum M1-01 nicht an der Reihe ist (Startreihenfolge der Freigabe).
+- P7 Eine STOP-Datei (in einem Probe-Klon) verhindert den Start; die Aufgabenwahl-Tests (`tests/coordinator.test.ts`) belegen Abhängigkeiten, Klasse C, blockierte Aufgaben und Wiederaufnahme.
+- P8 Der Pull Request nennt ehrlich, was nicht bewiesen ist: kein unbeaufsichtigter Betrieb, kein geplanter Lauf, Agentenkonto nur wenn bereits eingerichtet.
+
+**Nicht als Beweis gilt:** eine Simulation innerhalb derselben Unterhaltung, ein Testklon mit gestellter Freigabe als Ersatz für P1, eine Selbstauskunft ohne Zweigliste und Ausgabe.
 
 ### 12.3 Technische Schutzmaßnahmen vor der ersten betreuten Ausführung
 
 Betreut heißt: Fatih sieht zu und kann abbrechen. Maßgeblich ist der M0-Ausgang in `BACKLOG.md` (M0-04, M0-03, M0-08, M0-10, M0-11, M0-14); die Liste hier ist die Kurzfassung der technischen Seite, wobei Vorprüfung, Testintegrität und Reviewer-Anweisung zu M0-14 gehören. Mindestens nötig:
 1. **M0-04 erledigt (zwingend):** `deploy.yml` hat Schreibrecht und führt bei jedem Pull Request Repository-Code aus (`npm ci`, Tests, Paketbau). Jeder Pull Request eines Agenten, auch ohne Änderung an `.github/`, könnte das Token im Lauf missbrauchen (nicht ausprobiert). Eine lokale Diff-Prüfung genügt dafür nicht. Bis M0-04 öffnet der Agent daher nur Pull Requests, deren Diff ausschließlich `docs/` betrifft.
 2. Ruleset auf `main` und `deploy` (M0-03), mit Gegenprobe. Hinweis §7a: gegen mein eigenes Konto wirkt es nur teilweise.
-3. Entscheidungen zu `permissions.ts` (M0-08), Invarianten-Tests (M0-10) und angepasste `CLAUDE.md` (M0-11) liegen vor; Meilenstein-Zweig `meilenstein/m1-verwaltung` angelegt; Freigabe nach §3a vorhanden; `STOP`-Mechanismus und `preflight.sh` getestet.
+3. Entscheidungen zu `permissions.ts` (M0-08), Invarianten-Tests (M0-10) und angepasste `CLAUDE.md` (M0-11) liegen vor; Meilenstein-Zweig `meilenstein/m1-verwaltung` von Fatih angelegt (Abzweigung von `main`); Freigabe nach §3a vorhanden; `STOP`-Mechanismus und `preflight.sh` getestet.
 4. `test-integrity.sh` und Review-Anweisung vorhanden.
 5. Weder Produktions-Zugangsdaten noch Serverzugang in der Sitzung (belegt für diese Umgebung).
 
@@ -189,7 +218,7 @@ Zusätzlich nötig **vor unbeaufsichtigten Läufen:** eigenes Agentenkonto mit e
 | GitHub-REST-Zugriff, PRs, Kommentare, Pull-Request-Läufe, Zweige | **getestet** (diese Sitzung) |
 | Identität der Sitzung ist Fatihs Konto | **getestet** |
 | Unabhängige Reviewer als frische Agenten | **getestet** (mehrere Durchgänge) |
-| Backlog maschinell lesbar | **getestet** (Skript, 13.11.) |
+| Backlog maschinell lesbar, Aufgabenwahl auf dem echten Backlog (Entwurf `coordinator`, 16 grüne Tests, `tsc` ohne Fehler, Auswahl M1-07 dann M1-08 mit gestellter Freigabe) | **getestet** an Entwurf und Testdaten; **kein** Beweis für den echten Ablauf mit zwei Sitzungen |
 | `claude -p` / externe Schleife | **getestet: nicht nutzbar** (nicht angemeldet) |
 | Claude-Code-Befehle `--bg`, `agents`, `--worktree`, `--permission-mode` vorhanden | **getestet** (nur Hilfeausgabe; Verhalten ungeprüft) |
 | `/goal`, `/loop`, Auto-Modus, Hooks, Berechtigungsregeln | nur **laut Dokumentation** |

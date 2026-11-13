@@ -1,0 +1,97 @@
+import { describe, expect, it } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { checkDiff, nextTask, parseApproval, parseBacklog, parseStatus, preflight } from "../scripts/coordinator";
+
+const backlog = [
+  "- **M1-01 Bestand** · A · — · Text",
+  "- **M1-02 Person bearbeiten** · B · M1-01 · Text",
+  "- **M1-07 Personenliste** · A · — · Text",
+  "- **M1-08 Import** · A · M1-07 · Text",
+  "- **M1-09 Profil** · C · — · Text",
+  "- **M1-11 Räume** · B · M1-03, Frage 10 · Text",
+  "- **M1-03 Kurs** · B · M1-01 · Text",
+  "- **M2-01 Design** · A · M1-01 · Text",
+].join("\n");
+const tasks = parseBacklog(backlog);
+const ok = { milestones: ["M1"], order: [], questions: [] };
+
+describe("Backlog lesen", () => {
+  it("liest Klassen und Abhängigkeiten", () => {
+    expect(tasks.find((t) => t.id === "M1-11")).toMatchObject({ cls: "B", deps: ["M1-03", "Frage 10"] });
+  });
+  it("meldet nicht lesbare Aufgabenzeilen, doppelte IDs und unbekannte Abhängigkeiten", () => {
+    expect(() => parseBacklog("- **M1-01 Titel** · A · kaputt")).toThrow(/nicht lesbar/);
+    expect(() => parseBacklog("- **M1-01 A** · A · — · x\n- **M1-01 B** · A · — · y")).toThrow(/doppelte/);
+    expect(() => parseBacklog("- **M1-01 A** · A · M1-99 · x")).toThrow(/unbekannte/);
+  });
+  it("liest das echte BACKLOG.md ohne Fehler", () => {
+    const real = parseBacklog(readFileSync(join(__dirname, "../docs/produkt/BACKLOG.md"), "utf8"));
+    expect(real.length).toBeGreaterThan(80);
+  });
+});
+
+describe("Aufgabenwahl", () => {
+  it("wählt ohne Startreihenfolge die erste freie Aufgabe in Backlog-Reihenfolge", () => {
+    expect(nextTask(tasks, new Map(), ok)).toMatchObject({ task: { id: "M1-01" }, resume: false });
+  });
+  it("befolgt die Startreihenfolge der Freigabe", () => {
+    expect(nextTask(tasks, new Map(), { ...ok, order: ["M1-07", "M1-08"] })).toMatchObject({ task: { id: "M1-07" } });
+  });
+  it("erkennt eine fertige Aufgabe und wählt die nächste, ohne die erste doppelt anzufangen", () => {
+    const st = parseStatus("| M1-07 | fertig | PR 1 |");
+    expect(nextTask(tasks, st, { ...ok, order: ["M1-07", "M1-08"] })).toMatchObject({ task: { id: "M1-08" }, resume: false });
+  });
+  it("setzt begonnene Aufgaben vor neuen fort", () => {
+    const st = parseStatus("| M1-08 | begonnen | Zweig |");
+    expect(nextTask(tasks, st, { ...ok, order: ["M1-07"] })).toMatchObject({ task: { id: "M1-08" }, resume: true });
+  });
+  it("überspringt Klasse C, offene Abhängigkeiten, blockierte Aufgaben und fremde Meilensteine", () => {
+    const st = parseStatus("| M1-01 | blockiert | x |\n| M1-07 | blockiert | x |");
+    const r = nextTask(tasks, st, ok);
+    expect(r.task).toBeNull();
+    if (!r.task) { expect(r.reasons).toContain("M1-09: Klasse C braucht Einzelfreigabe"); expect(r.reasons).toContain("M1-02: wartet auf M1-01"); }
+  });
+  it("Frage N zählt erst, wenn die Freigabe sie nennt", () => {
+    const st = parseStatus("| M1-03 | fertig | x |");
+    expect(nextTask(tasks.filter((t) => t.id === "M1-11"), st, ok).task).toBeNull();
+    expect(nextTask(tasks.filter((t) => t.id === "M1-11"), st, { ...ok, questions: ["10"] })).toMatchObject({ task: { id: "M1-11" } });
+  });
+  it("ohne freigegebenen Meilenstein gibt es keine Aufgabe", () => {
+    expect(nextTask(tasks, new Map(), { milestones: [], order: [], questions: [] }).task).toBeNull();
+  });
+  it("Freigabe lesen", () => {
+    expect(parseApproval("Meilenstein: M1\nStartreihenfolge: M1-07, M1-08\nFragen: 2, 4")).toEqual({ milestones: ["M1"], order: ["M1-07", "M1-08"], questions: ["2", "4"] });
+  });
+});
+
+describe("Vorprüfung", () => {
+  const git = (clean: boolean) => () => (clean ? "" : " M src/x.ts\n");
+  const dir = (files: string[]) => { const d = mkdtempSync(join(tmpdir(), "koord-")); mkdirSync(join(d, "docs/produkt"), { recursive: true }); for (const f of files) writeFileSync(join(d, f), ""); return d; };
+  it("besteht nur mit Freigabe, ohne STOP und mit sauberem Baum", () => {
+    expect(preflight(dir(["docs/produkt/FREIGABEN.md"]), git(true)).every((c) => c.ok)).toBe(true);
+  });
+  it("STOP-Datei, fehlende Freigabe und schmutziger Baum verhindern den Lauf", () => {
+    expect(preflight(dir(["docs/produkt/FREIGABEN.md", "docs/produkt/STOP"]), git(true)).find((c) => c.name === "STOP fehlt")!.ok).toBe(false);
+    expect(preflight(dir([]), git(true)).find((c) => c.name === "FREIGABEN.md vorhanden")!.ok).toBe(false);
+    expect(preflight(dir(["docs/produkt/FREIGABEN.md"]), git(false)).find((c) => c.name === "Arbeitsbaum sauber")!.ok).toBe(false);
+  });
+});
+
+describe("Diff-Prüfung", () => {
+  it("lehnt geschützte Pfade ab", () => {
+    expect(checkDiff([".github/workflows/deploy.yml", "src/domain/permissions.ts", "docs/produkt/FREIGABEN.md", "package.json", "drizzle/0018.sql"], "")).toHaveLength(5);
+    expect(checkDiff(["src/domain/people-list.ts", "tests/people-list.test.ts"], "")).toEqual([]);
+  });
+  it("erkennt übersprungene Tests und entfernte Erwartungen", () => {
+    const patch = "+++ b/tests/a.test.ts\n-  expect(a).toBe(1);\n-  expect(b).toBe(2);\n+  it.skip(\"x\", () => {});\n+  expect(c).toBe(3);\n";
+    const p = checkDiff(["tests/a.test.ts"], patch);
+    expect(p.join("\n")).toMatch(/übersprungen/);
+    expect(p.join("\n")).toMatch(/Erwartungen in Tests entfernt/);
+  });
+  it("erlaubt ausdrücklich freigegebene Pfade", () => {
+    expect(checkDiff(["src/domain/permissions.ts"], "", [/permissions\.ts$/])).toEqual([]);
+  });
+});

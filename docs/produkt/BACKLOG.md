@@ -227,7 +227,7 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 - **M7-03 IK und BSK getrennt (A11)** · B · M7-01 · Akzeptanz: Kurs hat Typ IK/BSK; Regeln und Exporte je Typ getrennt, getestet.
 - **M7-04 UE-Grenzen gegen aktuelle Fassung prüfen (A5)** · B (ändert eine Anwesenheitsregel) · — · Quelle lesen, Regel belegen oder korrigieren. Akzeptanz: Quelle zitiert (kurz, mit Fundstelle) oder als „nicht prüfbar“ markiert; Tests passen zur Regel.
 - **M7-05 Einwilligungen und Einführungsveranstaltung (A6, A7)** · C (Rechtstext) · Rechtsprüfung · Akzeptanz: Texte von einer fachkundigen Person freigegeben; Einwilligung je Person speicher- und nachweisbar.
-- **M7-06 Aufbewahrung und Löschkonzept (A4)** · C · Datenschutz-Konzept durch Fachperson · Akzeptanz: Konzept liegt vor und ist freigegeben; Umsetzung erst danach.
+- **M7-06 Aufbewahrung und Löschkonzept (A4)** · C · Datenschutzkonzept durch Fachperson · Akzeptanz: Konzept liegt vor und ist freigegeben; Umsetzung erst danach.
 - **M7-07 Nachweispaket für die Online-Zulassung (A9)** · A · M7-02, M5-04 · Zusammenstellung der Nachweise für die Online-Zulassung. Akzeptanz: Paket enthält nur belegte Angaben; Lücken sind benannt.
 - **M7-08 Anfrage an das BAMF (BerD, InGe)** · C · — · Anfrage formulieren ja, versenden nie ohne Freigabe. Akzeptanz: Entwurf liegt vor; Versand nur durch Fatih.
 - **M7-09 Aussagen-Prüfung** · A · — · Texte, Startseite, Werbung gegen die Regel „keine Konformitätsbehauptung“ prüfen. Akzeptanz: Suchlauf über alle Texte; Fundliste abgearbeitet.
@@ -242,7 +242,7 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 
 **Steckbrief.**
 - **Erlebnis:** Eine Pilotschule arbeitet mit echten Personen; Fatih kann den Betrieb überblicken und im Notfall zurückgehen.
-- **Umfang:** M8-01 bis M8-09 (inkl. M8-05a).
+- **Umfang:** M8-01 bis M8-10.
 - **Ausgeschlossen:** Bezahlung, aktive Werbung für weitere Schulen, BAMF-Anbindungen.
 - **Mandanten und Sicherheit:** Datenschutz von Fachperson freigegeben; Sicherung wiederhergestellt getestet; Sicherheitsreview der Gesamtanwendung ohne offene hohe Funde; Zugang zu echten Daten nur nach Fatihs Freigabe.
 - **Fertig, wenn:** Pilot-Checkliste (Betrieb, Recht, Sicherheit, Schulung, Rückfallplan) vollständig und von Fatih bestätigt.
@@ -252,11 +252,11 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 - **M8-03 Echter E-Mail-Versand** · C · Frage 7 · Anbieter in der EU, Absenderdomain (SPF/DKIM/DMARC). Zugangsdaten legt Fatih selbst an. Akzeptanz: Testmail kommt an, nicht im Spam; SPF/DKIM/DMARC bestehen die Prüfung.
 - **M8-04 Datenschutz und Recht** · C · Fachperson · Impressum, Datenschutzerklärung, Nutzungsbedingungen, Auftragsverarbeitungsvertrag, Verzeichnis der Verarbeitungen; Platzhalter ersetzt. Akzeptanz: schriftliche Freigabe der Fachperson liegt vor; Texte im Produkt entsprechen ihr.
 - **M8-05 DSGVO-Funktionen** · C (berührt die Unveränderlichkeit der Nachweise) · M8-04 · Auskunft/Export einer Person, Löschung/Anonymisierung ohne Bruch der unveränderlichen Nachweise (Konzept zuerst).
-- **M8-05a Datenexport einer Schule** · C · M8-05 · Vollständiger Export der eigenen Schule für die Leitung (Wechselmöglichkeit). Akzeptanz: Export enthält nur die eigene Schule (Mandantentest); Protokoll des Exports.
+- **M8-09 Supportweg für Schulen** · A · M8-04, M8-03 · Kontaktweg und Fehlermeldung aus der Anwendung ohne Personendaten im Text. Akzeptanz: Meldung kommt an; kein Personenbezug im Protokoll.
 - **M8-06 Designpolitur und Barrierefreiheit** · A · M2-03, M3-04 · Prüfung nach WCAG 2.2 AA mit Werkzeug und von Hand; Tastatur, Screenreader, Kontrast. Akzeptanz: Bericht mit Behebungen.
 - **M8-07 Last- und Sicherheitstest** · B · M8-01, Frage 6 · Zielgröße aus Frage 6; Sicherheitsreview der Gesamtanwendung durch frischen Agenten und Checkliste; Abhängigkeitsprüfung grün.
 - **M8-08 Pilot-Einführung** · C · Frage 6 · Anleitung, Schulung, Supportweg, Rückfallplan, Freigabe für echte Personendaten **nur durch Fatih**.
-- **M8-09 Supportweg für Schulen** · A · M8-04, M8-03 · Kontaktweg und Fehlermeldung aus der Anwendung ohne Personendaten im Text. Akzeptanz: Meldung kommt an; kein Personenbezug im Protokoll.
+- **M8-10 Datenexport einer Schule** · C · M8-05 · Vollständiger Export der eigenen Schule für die Leitung (Wechselmöglichkeit). Akzeptanz: Export enthält nur die eigene Schule (Mandantentest); Protokoll des Exports.
 
 ---
 
@@ -309,5 +309,5 @@ Die Einrichtung folgt nach der Freigabe dieser Dokumente und wird in M0-14 an ei
 - **Budgets.** Je Aufgabe und je Lauf wird eine Obergrenze für Zeit und Aufwand gesetzt (Werte bei der Einrichtung festlegen). Überschreitung beendet den Lauf mit Bericht.
 - **Eskalation.** Nur echte Produktfragen, Stopp-Punkte und Blocker, die innerhalb der Grenzen nicht lösbar sind. Meldung in einfacher Sprache mit Empfehlung und Standard-Annahme.
 - **Meilenstein-Abschluss.** Gesamtprüfung auf dem Meilenstein-Zweig (alle Prüfungen, Browserdurchgang), Sicherheitsreview für alle B-Aufgaben, ein Pull Request nach `main`. Danach wartet der Lauf auf Fatihs Merge und fährt mit dem nächsten freigegebenen Meilenstein fort.
-- **Vor M0-04:** Der Agent öffnet nur Pull Requests, deren Diff ausschließlich `docs/` betrifft (Pull-Request-Läufe führen Repository-Code mit Schreibrecht aus). Meilenstein-Läufe mit Produktcode beginnen erst nach M0-04 und M0-Ausgang; die M0-Aufgaben M0-08, M0-10 und M0-12 dürfen nach M0-04 als Agent-Pull-Requests laufen (ohne geschützte Pfade), einzeln von Fatih gemergt. Geschützte Dateien (unten) bereitet der Agent als Diff vor; Fatih prüft ihn und merged selbst im Browser nach AUTONOMIE.md §3a. Der Weg: Der Agent legt den Diff als Entwurf unter `docs/produkt/entwurf/` (docs-only-Pull-Request) oder als Patch im Kommentar ab; ein frischer Reviewer und Fatih lesen ihn; Fatih wendet ihn selbst an und öffnet den Pull Request selbst. Das gilt auch für M0-04, dessen Diff auf den Rechte-Block und eine Pfad-Ausnahme beschränkt ist. Jeder Meilenstein-Pull-Request nach `main` enthält die Zeile „Diff geschützter Pfade: leer“ (oder die Liste).
+- **Vor M0-04:** Der Agent öffnet nur Pull Requests, deren Diff ausschließlich `docs/` betrifft (Pull-Request-Läufe führen Repository-Code mit Schreibrecht aus). Meilenstein-Läufe mit Produktcode beginnen erst nach M0-04 und M0-Ausgang; die M0-Aufgaben M0-08, M0-10 und M0-12 dürfen nach M0-04 als Agent-Pull-Requests laufen (ohne geschützte Pfade), einzeln von Fatih gemergt. Für M0-08, M0-10 und M0-12 sieht Fatih den Diff vor dem Öffnen des Pull Requests auf Änderungen an `.github/` durch (ein Pull Request bringt seine eigene Workflow-Datei mit; M0-04 allein schützt davor nicht). Geschützte Dateien (unten) bereitet der Agent als Diff vor; Fatih prüft ihn und merged selbst im Browser nach AUTONOMIE.md §3a. Der Weg: Der Agent legt den Diff als Entwurf unter `docs/produkt/entwurf/` (docs-only-Pull-Request) oder als Patch im Kommentar ab; ein frischer Reviewer und Fatih lesen ihn; Fatih wendet ihn selbst an und öffnet den Pull Request selbst. Das gilt auch für M0-04, dessen Diff auf den Rechte-Block und eine Pfad-Ausnahme beschränkt ist. Jeder Meilenstein-Pull-Request nach `main` enthält die Zeile „Diff geschützter Pfade: leer“ (oder die Liste).
 - **Was technisch erzwungen wird.** Lokale Sperrregeln in den Claude-Code-Einstellungen (kein Merge auf `main`, kein Push auf `main`, keine Änderungen an geschützten Pfaden), CI-Prüfungen und, sobald M0-03 erledigt ist, GitHub-Zweigschutz. **Bis dahin ist „kein Merge auf `main`“ nur eine Absprache, nicht ein Schutz auf GitHub-Seite; lokale Sperren entstehen erst mit M0-14.**

@@ -1,0 +1,126 @@
+// Kleinster Koordinator für die autonome Entwicklung: wählt die nächste Aufgabe und prüft Vorbedingungen.
+// Keine Netzwerkzugriffe, keine Schreibzugriffe. Zustand liegt in Git (BACKLOG.md, STATUS.md, FREIGABEN.md).
+import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+
+export type Task = { id: string; title: string; cls: "A" | "B" | "C"; deps: string[]; milestone: string };
+export type Status = "offen" | "begonnen" | "in Prüfung" | "fertig" | "blockiert";
+export type Approval = { milestones: string[]; order: string[]; questions: string[] };
+
+const LINE = /^- \*\*(M\d+-\d+a?) (.+?)\*\* · ([ABC])[^·]*· (.+?) · /;
+
+/** Liest alle Aufgabenzeilen. Eine Zeile, die wie eine Aufgabe beginnt, aber nicht passt, ist ein Fehler. */
+export function parseBacklog(md: string): Task[] {
+  const tasks: Task[] = [];
+  for (const [i, line] of md.split("\n").entries()) {
+    if (!/^- \*\*M\d+-\d+/.test(line)) continue;
+    const m = LINE.exec(line);
+    if (!m) throw new Error(`BACKLOG.md Zeile ${i + 1}: Aufgabenzeile nicht lesbar`);
+    const deps = m[4]!.trim() === "—" ? [] : m[4]!.split(",").map((d) => d.trim());
+    for (const d of deps) if (!/^(M\d+-\d+a?|Frage \d+|[A-Za-zÄÖÜäöüß ]+)$/.test(d)) throw new Error(`BACKLOG.md Zeile ${i + 1}: Abhängigkeit „${d}“ ungültig`);
+    tasks.push({ id: m[1]!, title: m[2]!, cls: m[3] as Task["cls"], deps, milestone: m[1]!.split("-")[0]! });
+  }
+  const ids = new Set(tasks.map((t) => t.id));
+  if (ids.size !== tasks.length) throw new Error("BACKLOG.md: doppelte Aufgaben-ID");
+  for (const t of tasks) for (const d of t.deps) if (/^M\d+-\d+a?$/.test(d) && !ids.has(d)) throw new Error(`${t.id}: unbekannte Abhängigkeit ${d}`);
+  return tasks;
+}
+
+/** STATUS.md: Tabellenzeilen `| M1-07 | fertig | … |`. Unbekannte Aufgaben gelten als offen. */
+export function parseStatus(md: string): Map<string, Status> {
+  const map = new Map<string, Status>();
+  for (const line of md.split("\n")) {
+    const m = /^\|\s*(M\d+-\d+a?)\s*\|\s*(offen|begonnen|in Prüfung|fertig|blockiert)\s*\|/.exec(line);
+    if (m) map.set(m[1]!, m[2] as Status);
+  }
+  return map;
+}
+
+/** FREIGABEN.md: `Meilenstein: M1`, `Startreihenfolge: M1-07, M1-08`, `Fragen: 2, 4, 10`. */
+export function parseApproval(md: string): Approval {
+  const list = (key: string) => md.split("\n").filter((l) => l.startsWith(`${key}:`)).flatMap((l) => l.slice(key.length + 1).split(",").map((s) => s.trim()).filter(Boolean));
+  return { milestones: list("Meilenstein"), order: list("Startreihenfolge"), questions: list("Fragen") };
+}
+
+export type Pick = { task: Task; resume: boolean } | { task: null; reasons: string[] };
+
+/** Nächste Aufgabe: begonnene zuerst (Wiederaufnahme), dann Startreihenfolge, dann Reihenfolge im Backlog. */
+export function nextTask(tasks: Task[], status: Map<string, Status>, approval: Approval): Pick {
+  const st = (id: string): Status => status.get(id) ?? "offen";
+  const reasons: string[] = [];
+  const inOrder = [...approval.order.map((id) => tasks.find((t) => t.id === id)).filter((t): t is Task => !!t), ...tasks];
+  const seen = new Set<string>();
+  const ordered = inOrder.filter((t) => !seen.has(t.id) && !!seen.add(t.id) && approval.milestones.includes(t.milestone));
+  const started = ordered.find((t) => st(t.id) === "begonnen");
+  if (started) return { task: started, resume: true };
+  for (const t of ordered) {
+    if (st(t.id) !== "offen") continue;
+    if (t.cls === "C") { reasons.push(`${t.id}: Klasse C braucht Einzelfreigabe`); continue; }
+    const open = t.deps.filter((d) => (/^M\d+-\d+a?$/.test(d) ? st(d) !== "fertig" : d.startsWith("Frage ") ? !approval.questions.includes(d.slice(6)) : true));
+    if (open.length) { reasons.push(`${t.id}: wartet auf ${open.join(", ")}`); continue; }
+    return { task: t, resume: false };
+  }
+  return { task: null, reasons: reasons.length ? reasons : ["keine Aufgabe in freigegebenen Meilensteinen"] };
+}
+
+export type Check = { name: string; ok: boolean; detail: string };
+
+/** Lokale Vorprüfung. CI-Stand und Branch-Schutz prüft der Lauf zusätzlich über die GitHub-Abfrage (nicht hier). */
+export function preflight(root: string, git: (...a: string[]) => string = (...a) => execFileSync("git", a, { cwd: root, encoding: "utf8" })): Check[] {
+  const has = (p: string) => existsSync(`${root}/${p}`);
+  const checks: Check[] = [];
+  checks.push({ name: "STOP fehlt", ok: !has("docs/produkt/STOP"), detail: has("docs/produkt/STOP") ? "STOP-Datei gefunden: kein Lauf" : "ok" });
+  checks.push({ name: "FREIGABEN.md vorhanden", ok: has("docs/produkt/FREIGABEN.md"), detail: has("docs/produkt/FREIGABEN.md") ? "ok" : "keine Freigabe" });
+  const dirty = git("status", "--porcelain").split("\n").filter((l) => l && !l.includes("reports/"));
+  checks.push({ name: "Arbeitsbaum sauber", ok: dirty.length === 0, detail: dirty.length ? `${dirty.length} Änderungen` : "ok" });
+  return checks;
+}
+
+const PROTECTED = [/^\.github\//, /^deploy\//, /^scripts\//, /^\.githooks\//, /^\.claude\//, /^CLAUDE(\.local)?\.md$/, /^docs\/produkt\/(ZIEL|BACKLOG|AUTONOMIE|FREIGABEN)\.md$/, /^docs\/produkt\/STOP$/, /^package(-lock)?\.json$/, /^(vitest|drizzle)\.config\.ts$/, /^tsconfig\.json$/, /^next\.config\./, /^drizzle\//, /^src\/db\//, /^src\/domain\/permissions\.ts$/, /^src\/server\/(auth|session|actor|access)\.ts$/];
+
+/** Prüft einen Diff: geschützte Pfade, gelöschte Tests, übersprungene Tests, entfernte Erwartungen. */
+export function checkDiff(files: string[], patch: string, allowed: RegExp[] = []): string[] {
+  const problems: string[] = [];
+  for (const f of files) if (PROTECTED.some((p) => p.test(f)) && !allowed.some((a) => a.test(f))) problems.push(`geschützter Pfad: ${f}`);
+  let removedExpect = 0, addedExpect = 0, file = "";
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ ")) file = line.slice(6);
+    if (!file.startsWith("tests/")) continue;
+    if (line.startsWith("-") && !line.startsWith("---") && /\bexpect\(/.test(line)) removedExpect++;
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      if (/\bexpect\(/.test(line)) addedExpect++;
+      if (/\b(it|test|describe)\.(skip|only|todo)\b|\bx(it|describe)\(/.test(line)) problems.push(`Test übersprungen/eingegrenzt in ${file}`);
+    }
+  }
+  if (removedExpect > addedExpect) problems.push(`Erwartungen in Tests entfernt (−${removedExpect}, +${addedExpect}); Begründung nötig`);
+  return problems;
+}
+
+function main(argv: string[]) {
+  const root = process.cwd();
+  const read = (p: string) => (existsSync(`${root}/${p}`) ? readFileSync(`${root}/${p}`, "utf8") : "");
+  const [cmd, ...rest] = argv;
+  if (cmd === "preflight") {
+    const checks = preflight(root);
+    for (const c of checks) console.log(`${c.ok ? "OK  " : "STOP"} ${c.name}: ${c.detail}`);
+    process.exit(checks.every((c) => c.ok) ? 0 : 1);
+  }
+  if (cmd === "next") {
+    const pick = nextTask(parseBacklog(read("docs/produkt/BACKLOG.md")), parseStatus(read("docs/produkt/STATUS.md")), parseApproval(read("docs/produkt/FREIGABEN.md")));
+    if (pick.task) console.log(`${pick.resume ? "FORTSETZEN" : "NEU"} ${pick.task.id} ${pick.task.title} (Klasse ${pick.task.cls})`);
+    else { console.log("KEINE AUFGABE"); for (const r of pick.reasons.slice(0, 10)) console.log(`- ${r}`); }
+    process.exit(pick.task ? 0 : 2);
+  }
+  if (cmd === "check-diff") {
+    const base = rest[0] ?? "origin/main";
+    const git = (...a: string[]) => execFileSync("git", a, { cwd: root, encoding: "utf8", maxBuffer: 64 << 20 });
+    const problems = checkDiff(git("diff", "--name-only", `${base}...HEAD`).split("\n").filter(Boolean), git("diff", `${base}...HEAD`));
+    for (const p of problems) console.log(`PROBLEM ${p}`);
+    console.log(problems.length ? "DIFF ABGELEHNT" : "DIFF OK");
+    process.exit(problems.length ? 1 : 0);
+  }
+  console.log("Aufruf: coordinator.ts preflight | next | check-diff [Basis]");
+  process.exit(64);
+}
+
+if (process.argv[1]?.endsWith("coordinator.ts")) main(process.argv.slice(2));

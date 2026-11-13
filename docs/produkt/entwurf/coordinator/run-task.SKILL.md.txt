@@ -1,0 +1,11 @@
+---
+name: run-task
+description: Führt genau eine Aufgabe des freigegebenen Meilensteins aus (Kurswerk). Nur nach `coordinator preflight` verwenden.
+---
+1. `npx tsx scripts/coordinator.ts preflight` und `... next`. Bei Fehler oder „KEINE AUFGABE“: Grund in STATUS.md notieren, Lauf beenden.
+2. CI-Stand von `main` und Meilenstein-Zweig per GitHub-Abfrage prüfen; Branch-Schutz abfragen. Nicht grün: Lauf beenden.
+3. Aufgabe beanspruchen: Zweig `task/mN-NN-…`, Entwurfs-Pull-Request, STATUS „begonnen“. Existiert der Zweig, fortsetzen.
+4. Code und Daten lesen, dann umsetzen. Nur Pfade der Aufgabe ändern. Keine geschützten Pfade (BACKLOG.md §3).
+5. `npx tsc --noEmit`, `npx vitest run`, `npm run build`, Browserdurchgang mit Bildschirmfotos. `coordinator check-diff` ohne Befund.
+6. Unabhängiger Review durch einen frischen Agenten mit: Aufgabe, Diff, Prüfausgaben. Befunde beheben; höchstens 3 Korrekturrunden nach roten Prüfungen und 2 nach Review-Befunden, danach „blockiert“ mit Bericht.
+7. Pull-Request-Text: Zusammenfassung in einfacher Sprache, Belege, Reviewer-Urteil, Diff geschützter Pfade, Risiken. STATUS „in Prüfung“, committen, pushen. Lauf endet. Zusammenführen in den Meilenstein-Zweig: in der ersten Demonstration durch Fatih.
