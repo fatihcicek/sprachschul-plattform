@@ -184,7 +184,7 @@ Stand 13.11.2026: Fatih hat die folgenden Punkte als **vorläufige Anforderungen
 | Nr. | Thema | Vorläufige Anforderung | Betrifft | Noch zu klären |
 | --- | --- | --- | --- | --- |
 | 2 | Übungen | Fünf Typen (Auswahl, Lückentext, Zuordnen, Reihenfolge, Kurzantwort). Jede Schule erstellt eigene Übungen. Gemeinsame Inhaltsbibliothek ist ein späterer Meilenstein (nach M9, eigener Entwurf). | M4 | nichts; Beispiele je Typ prüft Fatih in M4-01 |
-| 4 | Live-Raum | Video, Ton, Bildschirm teilen, Chat. Keine Aufnahme, keine Gruppenräume zu Beginn. | M5 | Technik und Kosten nach M5-01 |
+| 4 | Live-Raum | Video, Ton, Bildschirm teilen, Chat. Keine Aufnahme, keine Gruppenräume, kein Whiteboard zu Beginn. | M5 | Technik und Kosten nach M5-01 |
 | 6 | Pilot | Sprachen Plus e.V. ist die vorgeschlagene erste Pilotschule. **Schule, Termine, Kursarten und Umfang sind nicht formal bestätigt.** | M5 (Lasttest), M8 | alles; Entscheidung nach M3 |
 | 7 | Budget | Es werden keine Dienste gekauft und keine wiederkehrenden Kosten begründet. Für Kategorien siehe 8.3. | M0, M3, M5, M6, M8 | Beträge je Kategorie nach den Prüfberichten |
 | 10 | Unterrichtsformen | Präsenz, online und Mischform werden unterstützt. Raumverwaltung, Kapazität, Stundenplan und Konfliktvermeidung gehören in die Verwaltung (M1). Selbstanmeldung und Warteliste später, außer der Pilot braucht sie. | M1, M6 | ob der Pilot Selbstanmeldung braucht (mit Frage 6) |
@@ -220,7 +220,7 @@ Diese Spezifikation wurde gegen Code, Datenbank-Migrationen, Tests und GitHub ge
 
 - **Belegt:** 22 mandantengebundene Tabellen mit RLS und FORCE RLS; Rechte-Tabelle in `src/domain/permissions.ts`; Aufgaben mit Fristen; Anwesenheit, Protokoll, Klassenbuch; Hauptzweig ohne Branch-Schutz; Deploy-Workflow mit Schreibrecht für Pull-Request-Läufe.
 - **Widersprüche, die behoben oder in M0 eingeplant sind:** README veraltet (M0-12); `CLAUDE.md` nennt Next.js 15, installiert ist 16 (M0-11); frühere Fassung behauptete fehlende Fristen (korrigiert).
-- **Bisher fehlende Funktionen, jetzt im Plan:** Präsenzkurse, Räume, Anmeldung, Warteliste (Frage 10, M1); Stundenplan für die Verwaltung (M1-13), persönlicher Stundenplan und Vertretung (M6-06); Noten und Zeugnisse (nur falls Frage 5 sie verlangt); Aktivitätsprotokoll sichtbar für Leitung (M1); Suche und Filter (M1, M2); Datenexport einer Schule (M8); Support-Weg für Schulen (M8).
+- **Bisher fehlende Funktionen, jetzt im Plan:** Präsenzkurse, Räume, Kapazität (Frage 10, M1); Anmeldeformular und Warteliste später; Stundenplan für die Verwaltung (M1-13), persönlicher Stundenplan und Vertretung (M6-06); Noten und Zeugnisse (nur falls Frage 5 sie verlangt); Aktivitätsprotokoll sichtbar für Leitung (M1); Suche und Filter (M1, M2); Datenexport einer Schule (M8); Support-Weg für Schulen (M8).
 - **Ungeprüft:** Serverzustand, Datenablage der Testumgebung, Sicherungen, Dauer des Pilot-Betriebs (siehe §9).
 
 ## 9. Ungeprüftes, das früh geklärt werden muss
@@ -241,5 +241,5 @@ Diese Spezifikation wurde gegen Code, Datenbank-Migrationen, Tests und GitHub ge
 - **Migration:** eine versionierte Änderung am Aufbau der Datenbank. *Additiv* heißt: nur Neues kommt hinzu, nichts wird verändert oder gelöscht.
 - **CI:** die automatische Prüfung auf GitHub bei jeder Änderung (Typprüfung, Tests, Paketbau, später Geheimnissuche).
 - **Zweigschutz:** eine GitHub-Einstellung, die Direktänderungen an `main` technisch verbietet. Derzeit nicht aktiv.
-- **Deploy:** das Ausliefern eines Stands auf die Testumgebung. Passiert automatisch nach einem Merge auf `main`.
+- **Deploy:** das Ausliefern eines Stands auf die Testumgebung. Laut Konfiguration die Folge eines Merge auf `main` (Bau und Veröffentlichung im Zweig `deploy`, Abholung durch den Server); Neustart und Datenfolgen sind ungeprüft.
 - **UE:** Unterrichtseinheit (45 Minuten).
