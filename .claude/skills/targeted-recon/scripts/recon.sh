@@ -31,7 +31,7 @@ for SUBJ in "$@"; do
       case "$P" in
         .env|.env.*|*/.env|*/.env.*) emit "_Abgelehnt: .env-Dateien werden nicht gelesen._"; emit ""; continue;;
       esac
-      if ! git ls-files --error-unmatch -- "$P" >/dev/null 2>&1; then
+      if [ ! -f "$P" ] || ! git ls-files --error-unmatch -- "$P" >/dev/null 2>&1; then
         emit "_Nicht gefunden oder nicht versioniert (nur Dateien aus dem Repository werden gelesen)._"; emit ""; continue
       fi
       S=""; E=""
