@@ -67,12 +67,12 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 ## M1 Schulverwaltung vollständig
 
 **Ziel:** Eine Schule kann Personen, Kurse, Zuordnungen und Termine im Alltag vollständig selbst verwalten, ohne Datenbankzugriff oder Betreiber.
-**Freigegebene Rechte- und Datenbankänderungen:** neue Rechte `person.manage` (Leitung: Rolle ändern, deaktivieren; Verwaltung: Stammdaten von Teilnehmenden ändern) und `session.reschedule` (Leitung, Verwaltung). **Migrationen:** nur additiv, soweit nötig: Absagegrund an Terminen; Tabelle `rooms` mit Raumzuordnung an Kursen/Terminen (M1-11, nur nach Antwort auf Frage 10); Leserecht `activity.read` (Leitung) für das Aktivitätsprotokoll (M1-12); neue optionale Spalten an `organizations` für Kontakt, Zeitzone und Standard-UE-Länge.
+**Freigegebene Rechte- und Datenbankänderungen:** neue Rechte `person.manage` (Leitung: Rolle ändern, deaktivieren; Verwaltung: Stammdaten von Teilnehmenden ändern) und `session.reschedule` (Leitung, Verwaltung). **Migrationen:** nur additiv, soweit nötig: Absagegrund an Terminen; Tabelle `rooms` mit Raumzuordnung an Kursen/Terminen (M1-11, Frage 10 ist vorläufig entschieden); Leserecht `activity.read` (Leitung) für das Aktivitätsprotokoll (M1-12); Erweiterung der Unterrichtsform um `HYBRID`; neue optionale Spalten an `organizations` für Kontakt, Zeitzone und Standard-UE-Länge.
 
 
 **Steckbrief.**
 - **Erlebnis:** Leitung und Verwaltung richten eine Schule vollständig ein und pflegen sie im Alltag: Personen, Kurse, Einschreibungen, Termine, ohne Betreiber oder Datenbankzugriff.
-- **Umfang:** M1-01 bis M1-12.
+- **Umfang:** M1-01 bis M1-13.
 - **Ausgeschlossen:** Interessenten/Anmeldeformular, Warteliste, Anmeldeformular für Präsenz, Stundenplan, Abrechnung gegenüber Teilnehmenden, Logo, Betreiberbereich.
 - **Mandanten und Sicherheit:** Jede neue Abfrage hat einen Test „Schule A sieht nie Daten von Schule B“; Rechte-Matrix-Test; deaktivierte Personen haben keinen Zugang; jede Änderung im Audit; Nachweise werden nie gelöscht.
 - **Fertig, wenn:** Browserdurchgang für alle vier Rollen ohne offenen Fehler; tsc, vitest, build grün; Reviews BEREIT; Pull Request mit Bildschirmfotos.
@@ -83,11 +83,12 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 - **M1-04 Kursdetail** · A · M1-03 · Seite mit Teilnehmenden, Lehrkräften, Terminen, Verlauf. Akzeptanz: Verwaltung und Leitung sehen alles, Lehrkräfte nur eigene Kurse.
 - **M1-05 Einschreibungen und Lehrkräfte verwalten** · B · M1-03, M0-08(c) · Teilnehmende hinzufügen/entfernen, Eintritts- und Austrittsdatum, Kurswechsel, Lehrkraft wechseln. Akzeptanz: Daten wirken auf Aufgaben, Anwesenheit und Sichtbarkeit; keine Löschung von Nachweisen; Tests für Mandantentrennung.
 - **M1-06 Termine verwalten** · B · M1-03 · Termin verschieben, absagen (mit Grund), nachholen, einzeln hinzufügen. Akzeptanz: beendete/bestätigte Termine unveränderlich; Absage sichtbar für Betroffene; UE-Regeln (BAMF-Schalter) weiter geprüft.
-- **M1-07 Personenliste: Suche, Filter, Sortierung, Seiten** · A · M1-02 · Akzeptanz: 500 Personen bedienbar; Tests der Abfragen.
-- **M1-08 Import verbessern** · A · M1-02 · Vorschau, Fehlerliste mit Zeilen, Dublettenerkennung. Akzeptanz: fehlerhafte Datei ändert nichts; Fehlermeldungen in einfacher Sprache.
+- **M1-07 Personenliste: Suche, Filter, Sortierung, Seiten** · A · — · Reine Lese-Ansicht: neue Fachfunktion ohne Datenbank in `src/domain/` (Suche in Name/E-Mail, Filter nach Rolle und Zugangsstatus, Sortierung, Seiten) und Anbindung in `src/app/verwaltung/personen/page.tsx` über Adressparameter; keine Änderung an `permissions.ts`, `auth.ts`, Schema oder Migrationen. Akzeptanz: 500 Personen sind bedienbar; Tests der Fachfunktion (Umlaute, Groß-/Kleinschreibung, leere Treffer, Seitengrenzen); Test, dass nur die vom bestehenden Recht gelieferten Personen erscheinen (Schule B sieht nie Personen von Schule A); Browser: Suche, Filter und Blättern auf Desktop und 360 px. **Vorgesehene Demonstrationsaufgabe der ersten betreuten Ausführung** (AUTONOMIE.md §12).
+- **M1-08 Import verbessern** · A · M1-07 (nur Reihenfolge: gleiche Dateien) · **Zweite Demonstrationsaufgabe.** Vorschau, Fehlerliste mit Zeilen, Dublettenerkennung. Akzeptanz: fehlerhafte Datei ändert nichts; Fehlermeldungen in einfacher Sprache.
 - **M1-09 Schulprofil und Einstellungen** · B (Migration) · M1-01 · Schulname, Kontakt, Zeitzone, Standard-UE-Länge; das Logo folgt in M3-07. Akzeptanz: Änderungen protokolliert; nur Leitung.
 - **M1-10 E-Mail-Texte und Zustellfehler** · A · M1-01 · Vorlagen für Einladung, Passwort, Absage; sichtbare Fehler bei Zustellproblemen. Akzeptanz: Texte geprüft; echter Versand bleibt Stopp-Punkt (M8-03).
-- **M1-11 Räume und Kapazität für Präsenz- und Mischkurse** · B (Migration) · M1-03, Frage 10 · Raum mit Name und Plätzen je Schule; Kurs/Termin kann einen Raum haben; Doppelbelegung wird gewarnt. Akzeptanz: Mandanten- und Rechte-Test; Warnung im Browser sichtbar. Anmeldeformular und Warteliste folgen nach dem Pilot, falls Frage 10 es nicht früher verlangt.
+- **M1-11 Räume und Kapazität für Präsenz- und Mischkurse** · B (Migration) · M1-03, Frage 10 · Raum mit Name und Plätzen je Schule; Unterrichtsform Präsenz, Online **oder Mischform** (Erweiterung der Auswahl `delivery_mode` um `HYBRID`, additive Migration); Kurs/Termin kann einen Raum haben; Kapazität gegen Einschreibungen geprüft; Doppelbelegung von Raum und Lehrkraft wird beim Anlegen und Verschieben von Terminen **verhindert** (nicht nur gewarnt), mit klarer Meldung. Akzeptanz: Mandanten- und Rechte-Test; Konflikt-Tests (Raum, Lehrkraft, Randzeiten, Kapazität voll); Meldung im Browser sichtbar. Selbstanmeldung und Warteliste folgen später, falls der Pilot sie nicht verlangt.
+- **M1-13 Stundenplan für Verwaltung** · A · M1-11, M1-06 · Wochenansicht je Raum, Lehrkraft und Kurs für Leitung und Verwaltung (nur Lesen), mit sichtbaren Konflikten. Akzeptanz: 20 Termine in 3 Räumen korrekt dargestellt; Lehrkräfte sehen nur ihre eigenen Termine (Rechte-Test); Schule B sieht nichts von A.
 - **M1-12 Aktivitätsprotokoll für die Leitung** · A · M1-02 · Wer hat wann was geändert (Personen, Kurse, Einschreibungen), nur lesbar, nur für Leitung. Akzeptanz: jede Verwaltungsaktion aus M1-02 bis M1-06 erscheint; Rechte-Test; kein Zugriff über Schulgrenzen.
 
 ---
@@ -172,7 +173,7 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 **Steckbrief.**
 - **Erlebnis:** Ein Kurs trifft sich im eigenen Klassenraum in Kurswerk, ohne Fremdanbieter.
 - **Umfang:** M5-01 bis M5-07.
-- **Ausgeschlossen:** Aufnahme, Streaming an Dritte, Whiteboard und Gruppenräume (außer Frage 4 verlangt sie), Telefoneinwahl.
+- **Ausgeschlossen:** Aufnahme, Streaming an Dritte, Whiteboard und Gruppenräume (Frage 4: vorläufig ausgeschlossen), Telefoneinwahl.
 - **Mandanten und Sicherheit:** Zugangsberechtigung kurzlebig, serverseitig, nur für zugeordnete Personen und nur zum Termin; Schlüssel nie im Browser, Repository oder Log; Einwahlprotokoll nur vom System geschrieben.
 - **Fertig, wenn:** Bericht zur LiveKit-Prüfung und Entscheidung von Fatih; Test mit mindestens zwei Browsern; Lasttest mit der Pilotgröße; Datenfluss-Skizze von Fatih gesehen.
 
@@ -204,7 +205,7 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 - **M6-03 E-Mail-Benachrichtigungen** · B · M6-01 · Einstellungen je Person; Abmelden möglich. Akzeptanz: Test mit dem Datei-/Speicher-Versand; der echte Versand wird erst mit M8-03 eingeschaltet (C).
 - **M6-04 Kalender** · A · M1-06 · Ansicht und iCal-Export je Person. Akzeptanz: Export öffnet in einem Standard-Kalenderprogramm; Link nicht erratbar; abgesagte Termine entfallen.
 - **M6-05 Teilnahmebescheinigung (PDF)** · B · Frage 5, M1-05 · Vorlage mit Schulname/Logo, Zeitraum, Stunden. Datengrundlage: Einschreibung und Termine; Anwesenheitsstunden nur, wenn der BAMF-Baustein aktiv ist und bestätigte Anwesenheit vorliegt. Akzeptanz: PDF je Beispielperson geprüft; keine BAMF-Aussage; nur Berechtigte können sie erzeugen (Test).
-- **M6-06 Stundenplan und Vertretung** · C (neues Recht für Vertretung) · M6-04, M1-11 · Wochenansicht je Person und Raum; Vertretung benennen und Betroffene informieren. Akzeptanz: Änderung eines Termins erreicht nur die Betroffenen (Test); Vertretung bekommt temporär nur Zugriff auf den Termin.
+- **M6-06 Vertretung und Stundenplan für Lehrkräfte und Teilnehmende** · C (neues Recht für Vertretung) · M6-04, M1-13 · Persönliche Wochenansicht; Vertretung benennen und Betroffene informieren. Akzeptanz: Änderung eines Termins erreicht nur die Betroffenen (Test); Vertretung bekommt temporär nur Zugriff auf den Termin.
 
 ---
 
@@ -227,9 +228,9 @@ M0 ist die Bedingung für **jeden** unbeaufsichtigten Lauf. Die übrigen Meilens
 - **M7-04 UE-Grenzen gegen aktuelle Fassung prüfen (A5)** · B (ändert eine Anwesenheitsregel) · – · Quelle lesen, Regel belegen oder korrigieren. Akzeptanz: Quelle zitiert (kurz, mit Fundstelle) oder als „nicht prüfbar“ markiert; Tests passen zur Regel.
 - **M7-05 Einwilligungen und Einführungsveranstaltung (A6, A7)** · C (Rechtstext) · Rechtsprüfung · Akzeptanz: Texte von einer fachkundigen Person freigegeben; Einwilligung je Person speicher- und nachweisbar.
 - **M7-06 Aufbewahrung und Löschkonzept (A4)** · C · Datenschutz-Konzept durch Fachperson · Akzeptanz: Konzept liegt vor und ist freigegeben; Umsetzung erst danach.
-- **M7-07 Nachweispaket für die Online-Zulassung (A9)** · A · M7-02, M5-04.
-- **M7-08 Anfrage an das BAMF (BerD, InGe)** · C · formulieren ja, versenden nie ohne Freigabe.
-- **M7-09 Aussagen-Prüfung** · A · Texte, Startseite, Werbung gegen die Regel „keine Konformitätsbehauptung“ prüfen. Akzeptanz: Suchlauf über alle Texte; Fundliste abgearbeitet.
+- **M7-07 Nachweispaket für die Online-Zulassung (A9)** · A · M7-02, M5-04 · Zusammenstellung der Nachweise für die Online-Zulassung. Akzeptanz: Paket enthält nur belegte Angaben; Lücken sind benannt.
+- **M7-08 Anfrage an das BAMF (BerD, InGe)** · C · — · Anfrage formulieren ja, versenden nie ohne Freigabe. Akzeptanz: Entwurf liegt vor; Versand nur durch Fatih.
+- **M7-09 Aussagen-Prüfung** · A · — · Texte, Startseite, Werbung gegen die Regel „keine Konformitätsbehauptung“ prüfen. Akzeptanz: Suchlauf über alle Texte; Fundliste abgearbeitet.
 
 ---
 

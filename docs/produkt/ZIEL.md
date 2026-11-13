@@ -175,17 +175,19 @@ Legende: **UMGESETZT** = Code und Tests vorhanden. **TEILWEISE** = Grundlage da,
 
 ## 8. Produktfragen
 
-Nur fünf Fragen verändern die Planung wesentlich und brauchen deine Entscheidung. Alle anderen sind als Arbeitsannahme geführt: Es wird damit gebaut, du kannst sie jederzeit ändern, und eine Änderung kostet nur dann viel, wenn sie nach dem Bau der betroffenen Funktion kommt (dann steht es in der Spalte „Kosten einer späteren Änderung“).
+Fünf Punkte verändern die Planung wesentlich; sie sind unten vorläufig entschieden. Alle anderen sind als Arbeitsannahme geführt: Es wird damit gebaut, du kannst sie jederzeit ändern, und eine Änderung kostet nur dann viel, wenn sie nach dem Bau der betroffenen Funktion kommt (dann steht es in der Spalte „Kosten einer späteren Änderung“).
 
-### 8.1 Entscheidungen, die du treffen musst
+### 8.1 Entscheidungen
 
-| Nr. | Frage | Arbeitsannahme | Blockiert | Empfehlung |
+Stand 13.11.2026: Fatih hat die folgenden Punkte als **vorläufige Anforderungen** gesetzt. Sie werden mit der Freigabe der Spezifikation endgültig. Offen bleibt, was in der Spalte „Noch zu klären“ steht.
+
+| Nr. | Thema | Vorläufige Anforderung | Betrifft | Noch zu klären |
 | --- | --- | --- | --- | --- |
-| 2 | Welche Übungstypen zuerst, und wer schreibt die Übungen (nur Lehrkräfte der Schule, oder auch eine gemeinsame Bibliothek von dir)? | Lehrkräfte schreiben eigene Übungen; fünf Typen: Auswahl, Lückentext, Zuordnen, Reihenfolge, Kurzantwort | M4 | Mit fünf Typen und Schul-eigenen Übungen starten; gemeinsame Bibliothek erst nach dem Pilot |
-| 4 | Was muss der Live-Raum zuerst können? | Video, Ton, Bildschirm teilen, Chat; keine Aufnahme (Einwilligungen nötig), keine Gruppenräume | M5 | So lassen; Gruppenräume sind eine zweite Ausbaustufe |
-| 6 | Pilot: Welche Schule, welche Kurse, wie viele Personen, ab wann, BAMF-Kurse ja/nein? | Sprachen Plus e.V., wenige Kurse, zunächst ohne BAMF-Funktionen | M5 (Lasttest), M8 | Erst nach M3 festlegen; bis dahin gilt die Annahme |
-| 7 | Welches Monatsbudget gilt für Hosting (Datenbank in der EU, Dateiablage, Videoserver, E-Mail)? | Nur Kosten, die du vorher freigibst; bis dahin Testumgebung wie heute | M0, M3, M5, M6, M8 | Ein Betrag je Posten, damit Entscheidungen ohne Rückfrage möglich sind, sobald ein Posten unter dem Betrag bleibt |
-| 10 | Soll Kurswerk auch Präsenz- und Mischkurse verwalten (Räume, Anmeldung, Warteliste, Stundenplan), oder zunächst nur Online-Kurse? | Ja: Verwaltung für beides; Anmeldeformular und Warteliste in einer späteren Stufe von M1 | M1-11, M6-06 | Raum und Kapazität in M1, Anmeldeformular erst nach dem Pilot, falls der Pilot es nicht verlangt |
+| 2 | Übungen | Fünf Typen (Auswahl, Lückentext, Zuordnen, Reihenfolge, Kurzantwort). Jede Schule erstellt eigene Übungen. Gemeinsame Inhaltsbibliothek ist ein späterer Meilenstein (nach M9, eigener Entwurf). | M4 | nichts; Beispiele je Typ prüft Fatih in M4-01 |
+| 4 | Live-Raum | Video, Ton, Bildschirm teilen, Chat. Keine Aufnahme, keine Gruppenräume zu Beginn. | M5 | Technik und Kosten nach M5-01 |
+| 6 | Pilot | Sprachen Plus e.V. ist die vorgeschlagene erste Pilotschule. **Schule, Termine, Kursarten und Umfang sind nicht formal bestätigt.** | M5 (Lasttest), M8 | alles; Entscheidung nach M3 |
+| 7 | Budget | Es werden keine Dienste gekauft und keine wiederkehrenden Kosten begründet. Für Kategorien siehe 8.3. | M0, M3, M5, M6, M8 | Beträge je Kategorie nach den Prüfberichten |
+| 10 | Unterrichtsformen | Präsenz, online und Mischform werden unterstützt. Raumverwaltung, Kapazität, Stundenplan und Konfliktvermeidung gehören in die Verwaltung (M1). Selbstanmeldung und Warteliste später, außer der Pilot braucht sie. | M1, M6 | ob der Pilot Selbstanmeldung braucht (mit Frage 6) |
 
 ### 8.2 Arbeitsannahmen (du kannst widersprechen, ohne dass etwas blockiert)
 
@@ -196,6 +198,21 @@ Nur fünf Fragen verändern die Planung wesentlich und brauchen deine Entscheidu
 | 5 | Dokumente | Teilnahmebescheinigung als PDF; weitere Dokumente nach dem Pilot | M6 | gering |
 | 8 | Oberflächensprache | Deutsch; Texte so bauen, dass weitere Sprachen möglich sind | M2 | gering, wenn Texte zentral liegen |
 | 9 | Abgaben | Teilnehmende geben Dateien, Bilder und Sprachaufnahmen ab | M3 | mittel (Speicher, Größengrenzen) |
+
+### 8.3 Kostenkategorien (Vorschlag, keine Käufe)
+
+Es werden keine Preise angenommen. Jede Kategorie bekommt einen Prüfbericht mit Optionen, Standort (EU), Datenschutz und Kosten; erst danach nennt Fatih einen Höchstbetrag. Bis dahin gilt: ausgeben darf niemand etwas.
+
+| Kategorie | Wann nötig | Prüfbericht in |
+| --- | --- | --- |
+| Datenbank in der EU mit Sicherung | vor echten Personendaten | M8-01, M0-07 |
+| Dateiablage in der EU | Material und Abgaben | M3-01 |
+| Videoserver (LiveKit) | Live-Raum | M5-01 |
+| E-Mail-Versand | echte Einladungen und Benachrichtigungen | M8-03 |
+| Überwachung und Fehlerprotokoll | Pilot | M8-02 |
+| Domain und Zertifikat | bestehend, nur Verlängerung | M0 |
+
+Empfehlung: Höchstbetrag je Kategorie erst festlegen, wenn der jeweilige Bericht vorliegt; Entscheidungen unterhalb des Betrags kann der Lauf dann vorbereiten, aber nie selbst bezahlen.
 
 ## 8a. Abgleich mit dem tatsächlichen Stand (13.11.2026)
 
