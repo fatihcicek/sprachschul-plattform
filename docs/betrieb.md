@@ -30,14 +30,20 @@ Stand: 12.11.2026. Diese Seite trennt drei Dinge: was **am Code belegt** ist, wa
 
 Der Server wird erst umgestellt, **nachdem** der neue Zugang von Hand getestet wurde, und das Repository wird erst privat, nachdem ein echter Deploy darüber lief.
 
-**Schritt 1: Prüfen (Fatih, nur lesend).** In cPanel das **Terminal** öffnen. Die Prüfdatei holen und ausführen (solange das Repository öffentlich ist, geht das so; alternativ die Datei über den cPanel-Dateimanager hochladen):
+**Schritt 1: Prüfen (Fatih, nur lesend).** In cPanel das **Terminal** öffnen und die Prüfdatei auf den Server bringen. Zwei Wege, beide ändern nichts:
+
+- *Herunterladen:* Der Befehl mit Adresse **und Prüfsumme** steht im Pull-Request #24 (festgenagelt auf einen Stand, nicht auf `main`, damit niemand etwas Untergeschobenes bekommt). Nach dem Herunterladen `sha256sum server-pruefung.sh` ausführen und mit der Prüfsumme im PR vergleichen. Erst nach dem Merge von #24 liegt die Datei auch unter `main`; das Herunterladen geht nur, solange das Repository öffentlich ist.
+- *Per Dateimanager:* Datei in cPanel > Dateimanager hochladen (oder neue Datei anlegen und den Text einfügen).
+
+Dann ausführen:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/fatihcicek/sprachschul-plattform/main/deploy/server-pruefung.sh -o server-pruefung.sh
 bash server-pruefung.sh /voller/pfad/zum/datenbankordner
 ```
 
-Den Datenbankordner findest du in cPanel unter *Node.js-App* bei den Umgebungsvariablen: der Wert von `DATABASE_URL` hinter `pglite:`, zum Beispiel `/home/benutzer/schule_daten`. Nur diesen Pfad angeben, nie die ganze Variable. Die Ausgabe zurückgeben. Das Skript ändert nichts und macht Zugangsdaten unkenntlich, **die Ausgabe trotzdem kurz überfliegen**: Sie enthält Benutzername, Pfade und Dateinamen.
+Den Datenbankordner findest du in cPanel unter *Node.js-App* bei den Umgebungsvariablen: der Wert von `DATABASE_URL` hinter `pglite:`, zum Beispiel `/home/benutzer/schule_daten`. Nur diesen Pfad angeben, nie die ganze Variable (sieht das Skript eine Adresse oder Zugangsdaten, gibt es die Angabe nicht aus und bricht diesen Teil ab).
+
+Das Skript gibt nur aus, was es selbst formuliert, und streng geprüfte Werte. Rohe Zeilen aus Cronjob, Protokoll, Konfiguration oder Fehlermeldungen kommen nie vor, ein letzter Filter entfernt zusätzlich verdächtige Zeilen. **Das ist keine Garantie, deshalb die Ausgabe vor dem Weitergeben kurz überfliegen.** Sie kann enthalten: Repository-Adresse (Rechner und Name, ohne Zugangsdaten), Namen des Datenbankordners und gefundener Sicherungsdateien, Zeitpunkte, Commit-Nummern, Ordnerrechte, Anzahl der Prozesse. Nicht enthalten sind Benutzername, vollständige Pfade und Cron-Befehle. Fehlt auf dem Server ein Programm, steht „nicht ermittelbar“ in der Ausgabe statt einer stillen Lücke.
 
 **Schritt 2: Auswertung (Entwicklung).** Wie ruft der Server ab, ist SSH nach außen offen (Port 22 oder 443), wo liegen die Daten?
 
