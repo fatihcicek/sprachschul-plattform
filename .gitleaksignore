@@ -1,0 +1,4 @@
+# Einzelne geprüfte Fehlalarme (Format: Commit:Datei:Regel:Zeile). Jeder Eintrag mit Begründung.
+
+# Erfundene Passwörter für einen Test ("Anderes-Passwort-77" usw.), kein echtes Geheimnis.
+6f9e38e5bf00ab177d2b98b7efca7c2470b91b1e:tests/auth.test.ts:generic-api-key:130
