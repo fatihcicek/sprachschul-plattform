@@ -1,6 +1,6 @@
 ---
 name: cross-branch-recon
-description: Vor einem Merge, vor dem Start paralleler Arbeit oder bei der Frage nach der Merge-Reihenfolge ausführen. Zeigt, welche offenen Zweige dieselben Dateien ändern, und warnt besonders bei Migrationen, Rechten und CLAUDE.md. Nur lesend.
+description: Vor einem Merge, vor dem Start paralleler Arbeit oder bei der Frage nach der Merge-Reihenfolge ausführen. Zeigt, welche offenen Zweige dieselben Dateien ändern, und warnt besonders bei Migrationen, Rechten und CLAUDE.md. Ändert keinen Code (schreibt nur den Bericht, `git fetch --prune` aktualisiert die Remote-Zweige).
 ---
 
 # cross-branch-recon: Kollisionen zwischen Zweigen

@@ -2,12 +2,13 @@
 # closing-discipline: Reste in den gegenüber origin/main geänderten Dateien suchen.
 # Rückgabewert 0 = nichts gefunden, 1 = Treffer. Ändert nichts.
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)" || exit 2
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Kein Git-Repository: bitte im Projektordner ausführen." >&2; exit 2; }
+cd "$ROOT" || exit 2
 BASE="${BASE:-origin/main}"
 
 MB="$(git merge-base "$BASE" HEAD 2>/dev/null)" || { echo "Kein Vergleichsstand ($BASE) gefunden."; exit 2; }
 # Committed + gestaged + ungestaged + neue Dateien, ohne gelöschte.
-FILES="$( { git diff --name-only --diff-filter=ACMR "$MB"; git ls-files --others --exclude-standard; } | sort -u \
+FILES="$( { git -c core.quotepath=off diff --name-only --diff-filter=ACMR "$MB"; git -c core.quotepath=off ls-files --others --exclude-standard; } | sort -u \
   | grep -E '\.(ts|tsx|js|mjs|sh|yml|yaml|md|sql)$' | grep -vE '^(drizzle/meta/|package-lock\.json)' )"
 if [ -z "$FILES" ]; then echo "Keine geänderten Dateien gegenüber $BASE."; exit 0; fi
 

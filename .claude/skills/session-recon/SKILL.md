@@ -1,6 +1,6 @@
 ---
 name: session-recon
-description: Zu Beginn einer Arbeitssitzung, vor dem Planen einer Änderung und nach jedem Merge auf main ausführen. Erfasst den echten Ausgangszustand (Stand von main, Arbeitsordner, offene Zweige, nächste Migrationsnummer, Teststand) und schreibt einen Bericht nach reports/. Nur lesend.
+description: Zu Beginn einer Arbeitssitzung, vor dem Planen einer Änderung und nach jedem Merge auf main ausführen. Erfasst den echten Ausgangszustand (Stand von main, Arbeitsordner, offene Zweige, nächste Migrationsnummer, Teststand) und schreibt einen Bericht nach reports/. Ändert keinen Code.
 ---
 
 # session-recon: Ausgangslage prüfen
@@ -20,7 +20,7 @@ bash .claude/skills/session-recon/scripts/recon.sh              # mit Typprüfun
 bash .claude/skills/session-recon/scripts/recon.sh --ohne-tests # nur Git-Stand (schnell)
 ```
 
-Der Bericht liegt unter `reports/session-recon/<UTC-Zeit>.md` (nicht versioniert). Das Skript holt mit `git fetch origin --prune` die Zweig-Stände und ändert sonst nichts.
+Der Bericht liegt unter `reports/session-recon/<UTC-Zeit>.md` (nicht versioniert). Das Skript ändert keinen Code. Nebenwirkungen: `git fetch origin --prune` aktualisiert die bekannten Remote-Zweige, `tsc` schreibt `tsconfig.tsbuildinfo` (ignoriert), und die Tests legen auf dem Datenbankserver aus `DATABASE_URL` temporäre Testdatenbanken an und löschen sie wieder.
 
 ## Was erfasst wird
 

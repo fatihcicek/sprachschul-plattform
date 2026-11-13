@@ -1,6 +1,6 @@
 ---
 name: targeted-recon
-description: Vor einem Plan oder Arbeitsauftrag ausführen, der vom aktuellen Inhalt bestimmter Dateien, Symbole, Zweige oder Muster abhängt. Liest nur die genannten Gegenstände, schreibt einen Bericht nach reports/. Nur lesend.
+description: Vor einem Plan oder Arbeitsauftrag ausführen, der vom aktuellen Inhalt bestimmter Dateien, Symbole, Zweige oder Muster abhängt. Liest nur die genannten Gegenstände und schreibt einen Bericht nach reports/.
 ---
 
 # targeted-recon: gezielt nachsehen
@@ -30,4 +30,4 @@ Bericht: `reports/targeted-recon/<UTC-Zeit>.md`.
 
 ## Grenzen
 
-Ändert nichts, pusht nicht, merged nicht. Treffer sind auf 200 Zeilen je Gegenstand begrenzt; bei mehr Treffern das Muster enger fassen.
+Ändert keinen Code, pusht nicht, merged nicht. `file:` liest nur versionierte Dateien des Repositorys und lehnt `.env*` ab. Ein Suchfehler (z. B. ungültiger regulärer Ausdruck) wird als Fehler gemeldet, nicht als „keine Treffer“, und setzt den Rückgabewert 1. Treffer sind auf 200 Zeilen je Gegenstand begrenzt; bei mehr Treffern das Muster enger fassen.

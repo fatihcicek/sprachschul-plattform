@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # cross-branch-recon: Überschneidungen zwischen offenen Zweigen. Schreibt nur nach reports/.
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)" || exit 2
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Kein Git-Repository: bitte im Projektordner ausführen." >&2; exit 2; }
+cd "$ROOT" || exit 2
 BASE="origin/main"
-git fetch origin --prune >/dev/null 2>&1 || true
+git fetch origin --prune >/dev/null 2>&1 || echo "Hinweis: git fetch ist fehlgeschlagen, Stände können veraltet sein." >&2
+if ! git rev-parse --verify -q "$BASE" >/dev/null; then
+  echo "FEHLER: $BASE nicht vorhanden. Ohne Vergleichsstand ist kein Befund möglich." >&2
+  exit 2
+fi
 
 BRANCHES=()
 if [ "$#" -ge 1 ]; then
@@ -17,7 +22,7 @@ else
 fi
 if [ "${#BRANCHES[@]}" -eq 0 ]; then echo "Keine offenen Zweige gefunden."; exit 0; fi
 
-STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 OUT="reports/cross-branch-recon/$STAMP.md"
 mkdir -p "$(dirname "$OUT")"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
@@ -39,7 +44,7 @@ for BR in "${BRANCHES[@]}"; do
   if [ -z "$REF" ]; then emit "- \`$BR\`: _nicht gefunden_"; continue; fi
   read -r B A < <(git rev-list --left-right --count "$BASE...$REF")
   MB="$(git merge-base "$BASE" "$REF")"
-  FILES="$(git diff --name-only "$MB" "$REF")"
+  FILES="$(git -c core.quotepath=off diff --name-only "$MB" "$REF")"
   N="$(printf '%s' "$FILES" | grep -c . || true)"
   emit "- \`$BR\`: $A voraus, $B zurück, $N geänderte Datei(en)"
   printf '%s\n' "$FILES" | grep . | while IFS= read -r F; do printf '%s\t%s\n' "$F" "$BR" >> "$TMP/all"; done
@@ -54,7 +59,7 @@ if [ -z "$OVER" ]; then
 else
   emit "| Datei | Zweige |"; emit "|---|---|"
   while IFS= read -r F; do
-    BRS="$(awk -F'\t' -v f="$F" '$1==f{print $2}' "$TMP/all" | sort -u | paste -sd, - | sed 's/,/, /g')"
+    BRS="$(F="$F" awk -F'\t' '$1==ENVIRON["F"]{print $2}' "$TMP/all" | sort -u | paste -sd, - | sed 's/,/, /g')"
     emit "| \`$F\` | $BRS |"
   done <<< "$OVER"
 fi

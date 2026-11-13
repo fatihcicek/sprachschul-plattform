@@ -32,7 +32,7 @@ Beim Abschluss gilt wie in `CLAUDE.md`: kein „fertig“ ohne echte Ausgaben.
 
 ## Schritt 3: Abschlussbericht
 
-Vorlage: `abschlussbericht.md` in diesem Ordner. Sie ist so aufgebaut wie die Pull-Request-Vorlage, damit der Bericht fast unverändert als PR-Text taugt. Die Datei im Ordner `reports/` ablegen (nicht versioniert) und den Text in den Pull Request übernehmen.
+Vorlage: `abschlussbericht.md` in diesem Ordner. Ihre Abschnitte entsprechen inhaltlich der Pull-Request-Vorlage in `.github/pull_request_template.md` (Änderung in einfacher Sprache, Belege, Review, offene Risiken), sodass sich der Text leicht dorthin übernehmen lässt. Die Datei im Ordner `reports/` ablegen (nicht versioniert) und den Text in den Pull Request übernehmen.
 
 Regeln für den Bericht:
 

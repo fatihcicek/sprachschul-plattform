@@ -3,12 +3,13 @@
 # Aufruf: bash .claude/skills/session-recon/scripts/recon.sh [--ohne-tests]
 set -uo pipefail
 
-cd "$(git rev-parse --show-toplevel)" || exit 2
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Kein Git-Repository: bitte im Projektordner ausführen." >&2; exit 2; }
+cd "$ROOT" || exit 2
 BASE="origin/main"
 RUN_TESTS=1
 [ "${1:-}" = "--ohne-tests" ] && RUN_TESTS=0
 
-STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 OUT_DIR="reports/session-recon"
 OUT="$OUT_DIR/$STAMP.md"
 mkdir -p "$OUT_DIR"
@@ -16,10 +17,15 @@ FAIL=0
 REPORT=""
 emit() { REPORT="${REPORT}$1"$'\n'; }
 
-git fetch origin --prune >/dev/null 2>&1 || emit "_Hinweis: git fetch ist fehlgeschlagen, Zweig-Stände können veraltet sein._"
+git fetch origin --prune >/dev/null 2>&1 || NOFETCH=1
+if ! git rev-parse --verify -q "$BASE" >/dev/null; then
+  echo "FEHLER: $BASE nicht vorhanden (git fetch origin schlägt fehl?). Ohne Vergleichsstand ist kein Befund möglich." >&2
+  exit 2
+fi
 
 emit "# Session-Recon $STAMP"
 emit ""
+[ "${NOFETCH:-0}" = "1" ] && { emit "_Hinweis: git fetch ist fehlgeschlagen, Zweig-Stände können veraltet sein._"; emit ""; }
 
 # --- Stand ---
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
@@ -32,7 +38,7 @@ emit "- Gegenüber \`$BASE\`: $AHEAD voraus, $BEHIND zurück"
 emit ""
 
 # --- Arbeitsordner ---
-STATUS="$(git status --short)"
+STATUS="$(git -c core.quotepath=off status --short)"
 emit "## Arbeitsordner"
 emit ""
 if [ -z "$STATUS" ]; then
@@ -96,7 +102,7 @@ else
   npx vitest run >"$LOG" 2>&1; VT=$?
   emit ""
   emit "\`npx vitest run\`: Rückgabewert $VT. Ergebniszeilen wörtlich:"
-  emit '```'; emit "$(sed 's/\x1b\[[0-9;]*m//g' "$LOG" | grep -E '^\s*(Test Files|Tests|Errors)' || tail -3 "$LOG")"; emit '```'
+  emit '```'; emit "$(sed 's/\x1b\[[0-9;]*m//g' "$LOG" | grep -E '^\s*(Test Files|Tests|Errors)' || sed 's/\x1b\[[0-9;]*m//g' "$LOG" | grep . | tail -5)"; emit '```'
   [ "$VT" -ne 0 ] && FAIL=1
   rm -f "$LOG"
 fi
