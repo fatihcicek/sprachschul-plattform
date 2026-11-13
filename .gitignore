@@ -5,3 +5,5 @@ node_modules
 next-env.d.ts
 dist
 .mail-outbox
+reports/
+.claude/settings.local.json
