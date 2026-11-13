@@ -21,6 +21,13 @@ export function markSuperuser(db: Db) {
 
 export function createDb(connectionString: string): { db: Db; pool: Pool } {
   const pool = new Pool({ connectionString });
+  // Eine im Leerlauf gekappte Verbindung (Datenbank-Neustart, Aufräumen der Testdatenbank)
+  // meldet pg als 'error' am Pool. Ohne Zuhörer beendet Node dafür den ganzen Prozess.
+  // Der Pool entfernt die Verbindung selbst und baut bei Bedarf eine neue auf.
+  // Nur die Meldung ausgeben, nie die Verbindungsdaten.
+  pool.on("error", (err) => {
+    console.error("Datenbankverbindung im Leerlauf beendet:", err.message);
+  });
   return { db: drizzle(pool, { schema }) as unknown as Db, pool };
 }
 
